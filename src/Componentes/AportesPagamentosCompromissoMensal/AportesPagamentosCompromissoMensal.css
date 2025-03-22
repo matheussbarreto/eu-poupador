@@ -1,0 +1,25 @@
+.aportes-pagamentos-compromisso-mensal {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.aportes-pagamentos-compromisso-mensal h2 {
+    font-size: 1.3em;
+    color: var(--primary-color);
+    margin: 10px auto;
+    font-weight: bold;
+}
+
+.aportes-pagamentos-compromisso-mensal .titulo {
+    min-height: 2rem;
+    font-weight: 700;
+}
+
+.aportes-pagamentos-compromisso-mensal .objetivos {
+    width: 100%;
+    text-align: center;
+    color: var(--primary-color);
+}

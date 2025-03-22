@@ -1,0 +1,39 @@
+.realizado-previsto-compromisso-mensal {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.realizado-previsto-compromisso-mensal h2 {
+    font-size: 1.3em;
+    color: var(--primary-color);
+    margin: 10px auto;
+    font-weight: bold;
+}
+
+.realizado-previsto-compromisso-mensal .legenda {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.realizado-previsto-compromisso-mensal .legenda-serie {
+    display: flex;
+    min-width: 220px;
+}
+
+.realizado-previsto-compromisso-mensal .legenda-serie:last-child {
+    font-weight: bold;
+}
+
+.realizado-previsto-compromisso-mensal .legenda-serie span {
+    flex: 1;
+    text-align: left;
+}
+
+.realizado-previsto-compromisso-mensal .legenda-serie span:last-child {
+    flex: 2;
+    text-align: right;
+}

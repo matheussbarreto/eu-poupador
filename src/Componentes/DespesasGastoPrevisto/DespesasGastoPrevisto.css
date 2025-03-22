@@ -1,0 +1,43 @@
+.despesas-gasto-previsto {
+    width: 29%;
+}
+
+.despesas-gasto-previsto h2 {
+    font-size: 1.3em;
+    color: var(--primary-color);
+    margin: 10px auto;
+    font-weight: bold;
+}
+
+.despesas-gasto-previsto .legenda {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.despesas-gasto-previsto .legenda-serie {
+    display: flex;
+    min-width: 190px;
+}
+
+.despesas-gasto-previsto .legenda-serie:last-child {
+    font-weight: bold;
+}
+
+.despesas-gasto-previsto .legenda-serie span {
+    flex: 1;
+    text-align: left;
+}
+
+.despesas-gasto-previsto .legenda-serie span:last-child {
+    flex: 2;
+    text-align: right;
+}
+
+@media only screen and (max-width: 1300px) {
+    .despesas-gasto-previsto {
+        width: 32.5%;
+    }
+
+}

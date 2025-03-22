@@ -1,0 +1,48 @@
+.mounth-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 25px;
+    font-weight: bold;
+    width: 100%;
+    gap: 20px;
+    background-color: transparent;
+}
+
+
+.mounth-selector .button {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    background: transparent;
+    border: none;
+    color: var(--primary-color);
+    font-size: 21px;
+    cursor: pointer;
+    padding: 10px 12px;
+    transition: transform 0.2s;
+    background-color: #fff;
+    border-radius: 80px;
+}
+
+.mounth-selector .button:hover {
+    transform: scale(1.2);
+}
+
+.mounth-selector .button:focus {
+    outline: none;
+}
+
+.mounth-selector .button:disabled {
+    opacity: .6;
+    transform: none;
+}
+
+.mounth-selector .date-display {
+    min-width: 200px;
+    text-align: center;
+    font-size: 18px;
+    padding: 15px;
+    color: var(--primary-color);
+    background-color: #fff;
+    border-radius: 50px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}

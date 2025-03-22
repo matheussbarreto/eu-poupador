@@ -1,0 +1,25 @@
+.acumulos-amortizacoes-compromisso-global {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.acumulos-amortizacoes-compromisso-global h2 {
+    font-size: 1.3em;
+    color: var(--primary-color);
+    margin: 10px auto;
+    font-weight: bold;
+}
+
+.acumulos-amortizacoes-compromisso-global .titulo {
+    min-height: 2rem;
+    font-weight: 700;
+}
+
+.acumulos-amortizacoes-compromisso-global .objetivos {
+    width: 100%;
+    text-align: center;
+    color: var(--primary-color);
+}

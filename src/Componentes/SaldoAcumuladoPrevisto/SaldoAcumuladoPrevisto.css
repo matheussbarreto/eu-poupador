@@ -1,0 +1,27 @@
+.saldo-acumulado-previsto {
+    /* flex: 1; */
+    width: 29%;
+}
+
+.saldo-acumulado-previsto h2 {
+    font-size: 1.3em;
+    color: #24b7d9;
+    margin: 10px auto;
+    font-weight: bold;
+}
+
+table.legend {
+    /* margin-left: auto; */
+    margin-right: 0;
+}
+
+table.legend td {
+    padding: 5px 10px 0 0;
+}
+
+@media only screen and (max-width: 1300px) {
+    .saldo-acumulado-previsto {
+        width: 32.5%;
+    }
+
+}

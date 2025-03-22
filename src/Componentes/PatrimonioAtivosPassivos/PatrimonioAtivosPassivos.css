@@ -1,0 +1,29 @@
+.patrimonio-ativos-passivos {
+    /* flex: 3; */
+    width: 70%;
+}
+
+.patrimonio-ativos-passivos .apexcharts-legend :last-child .apexcharts-legend-text {
+    font-weight: 700 !important;
+}
+
+.patrimonio-ativos-passivos .apexcharts-legend-text {
+    display: flex;
+    min-width: 190px;
+}
+
+.patrimonio-ativos-passivos .apexcharts-legend-text span {
+    flex: 1;
+    text-align: left;
+}
+
+.patrimonio-ativos-passivos .apexcharts-legend-text span:last-child {
+    flex: 2;
+    text-align: right;
+}
+
+@media only screen and (max-width: 1300px) {
+    .patrimonio-ativos-passivos {
+        width: 66.25%;
+    }
+}

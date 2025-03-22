@@ -1,0 +1,18 @@
+.carteira-investimentos {
+    width: 29%;
+}
+
+.carteira-investimentos .apexcharts-legend-series {
+    width: 80%;
+}
+
+.carteira-investimentos .apexcharts-legend-text {
+    display: flex;
+    width: 100%;
+}
+
+@media only screen and (max-width: 1300px) {
+    .carteira-investimentos {
+        width: 32.5%;
+    }
+}
