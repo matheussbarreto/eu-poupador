@@ -1,0 +1,91 @@
+/* Pretty checkbox */
+.pretty {
+    position: relative;
+    display: inline-block;
+    /* margin-right: 1em; */
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.pretty * {
+    box-sizing: border-box;
+}
+
+.pretty.diferenca{
+    margin-left: 24px;
+}
+
+.pretty input {
+    position: absolute;
+    left: 0;
+    top: 0;
+    min-width: 1em;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    opacity: 0;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+}
+
+.pretty .state label {
+    position: initial;
+    display: inline-block;
+    font-weight: 400;
+    margin: 0;
+    text-indent: 1.5em;
+    min-width: calc(1em + 2px);
+}
+
+
+.pretty .state label:after,
+.pretty .state label:before {
+    content: '';
+    width: calc(1em);
+    height: calc(1em);
+    display: block;
+    box-sizing: border-box;
+    border-radius: 50px;
+    border: 1px solid transparent;
+    z-index: 0;
+    position: absolute;
+    left: 0;
+    top: 2px;
+    /* top: calc((0% -(100% - 1em)) - 8%); */
+    background-color: transparent;
+}
+
+.pretty .state label:before {
+    border-color: #bdc3c7;
+}
+
+.pretty input:checked~.state.green label:after,
+.pretty.p-toggle .state.green label:after {
+    background-color: var(--secondary-color);
+}
+
+.pretty input:checked~.state.gray label:after,
+.pretty .state.gray label:after {
+    background-color: var(--tertiary-color);
+}
+
+.pretty input:checked~.state.blue label:after,
+.pretty .state.blue label:after {
+    background-color: var(--primary-color);
+}
+
+.pretty input:checked~.state.red label:after,
+.pretty .state.red label:after {
+    background-color: var(--red-color);
+}
+
+.pretty input:checked~.state.dark-blue label:after,
+.pretty .state.dark-blue label:after {
+    background-color: var(--dark-blue-color);
+}
+
+.pretty input:checked~.state.yellow label:after,
+.pretty .state.yellow label:after {
+    background-color: var(--yellow-color);
+}
