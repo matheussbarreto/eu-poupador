@@ -73,7 +73,7 @@ const ReceitasRecebidoPrevisto = () => {
 
     const diferencaGeral = chartData.received - chartData.expected;
     const diferencaPercentual = chartData.expected
-        ? ((diferencaGeral / chartData.expected) * 100).toFixed(2)
+        ? ((diferencaGeral / chartData.expected) * 100).toFixed(2).replace('.', ',')
         : 0;
 
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
@@ -114,7 +114,7 @@ const ReceitasRecebidoPrevisto = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Diferença</span>
-                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
+                    <span style={{ color: valueColor }}>{(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}<br />({(diferencaPercentual >= 0 ? '+' : '') + diferencaPercentual}%)</span>
                 </span>
             </div>
             <Chart

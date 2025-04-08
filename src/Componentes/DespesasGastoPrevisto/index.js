@@ -75,7 +75,7 @@ const DespesasGastoPrevisto = () => {
     // const diferencaGeral = chartData.received - chartData.expected;
     const diferencaGeral = chartData.expected - chartData.received;
     const diferencaPercentual = chartData.expected
-        ? ((diferencaGeral / chartData.expected) * 100).toFixed(2)
+        ? `${(diferencaGeral / chartData.expected * 100).toFixed(2).replace('.', ',')}`.replace(/^(-?)/, '$1+')
         : 0;
 
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');

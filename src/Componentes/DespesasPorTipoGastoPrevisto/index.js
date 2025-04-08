@@ -184,7 +184,7 @@ const DespesasPorTipoGastoPrevisto = () => {
             const diferencaGeral = (totalPrevisto - totalGasto);
             const valueColor = diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)';
             const diferencaPercentual = totalPrevisto
-            ? ((diferencaGeral / totalPrevisto) * 100).toFixed(2)
+            ? ((diferencaGeral / totalPrevisto) * 100).toFixed(2).replace('.', ',')
             : 0;
             // Atualizando o estado do gráfico com os novos dados
             setDespGastoCatChart(prev => ({
@@ -198,7 +198,7 @@ const DespesasPorTipoGastoPrevisto = () => {
                         customLegendItems: [
                             `<span>Gasto</span> <span>${formatCurrency(totalGasto)}</span>`,
                             `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`,
-                            `<span>Diferença</span> <span style="color: ${valueColor};">${formatCurrency(diferencaGeral)}<br/>(${diferencaPercentual}%)</span>`
+                            `<span>Diferença</span> <span style="color: ${valueColor};">${(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}<br/>(${(diferencaGeral >= 0 ? '+' : '') + diferencaPercentual}%)</span>`
                         ]
                     }
                 }

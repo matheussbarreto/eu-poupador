@@ -92,7 +92,7 @@ const CarteiraInvestimentos = () => {
             position: "bottom",
             formatter: function (seriesName, opts) {
                 const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2);
+                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
                 return ` 
                     <span><strong>${seriesName}</strong><br/>Porcentagem</span>
                     <span style="margin-left: auto; text-align:right;">
@@ -142,7 +142,7 @@ const CarteiraInvestimentos = () => {
         ],
     };
     return (
-        <section className='carteira-investimentos'>
+        <section className='carteira-investimentos donut-chart'>
             <Chart options={chartOptions} series={chartData.values} type="donut" height={630} />
         </section>
     )

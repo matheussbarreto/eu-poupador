@@ -173,8 +173,8 @@ const SaldoAcumuladoPrevisto = () => {
                         </tr>
                     ))}
                     <tr>
-                        <td style={{ paddingLeft: 24, alignContent: 'start', fontWeight: 'bold' }}>Diferença</td>
-                        <td style={{color: 'red', fontWeight: 'bold'}}>R$ - 1.300,00 <br/>(- 42,11%)</td>
+                        <td style={{ paddingLeft: 18, alignContent: 'start', fontWeight: 'bold' }}>Diferença</td>
+                        <td style={{color: 'red', fontWeight: 'bold'}}>-R$ 1.300,00 <br/>(-42,11%)</td>
                     </tr>
                 </tbody>
             </table>
@@ -183,7 +183,7 @@ const SaldoAcumuladoPrevisto = () => {
                 options={options}
                 series={options.series}
                 type="bar"
-                height={300}
+                height={285}
             />
         </section >
     )

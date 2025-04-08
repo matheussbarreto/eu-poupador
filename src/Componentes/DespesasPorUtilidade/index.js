@@ -73,7 +73,7 @@ const DespesasPorUtilidade = () => {
             },
         },
         title: {
-            text: "Despesas por utilidade",
+            text: "Despesas Por Utilidade",
             align: "left",
             style: {
                 color: "var(--primary-color)",
@@ -81,7 +81,7 @@ const DespesasPorUtilidade = () => {
             },
         },
         labels: chartData.categories,
-        colors: ["#FF0000", "#B0B0B0", "#B50000", "#808080", "#FFC04D", "#002776", "#FF9900"],
+        colors: [ "#B0B0B0", "#FF0000","#B50000", "#808080", "#FFC04D", "#002776", "#FF9900"],
         dataLabels: {
             enabled: false,
             formatter: (val) => `${val.toFixed(2)}%`,
@@ -90,13 +90,18 @@ const DespesasPorUtilidade = () => {
             position: "bottom",
             formatter: function (seriesName, opts) {
                 const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2);
+                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
                 return ` 
                     <span><strong>${seriesName}</strong><br/>Porcentagem</span>
                     <span style="margin-left: auto; text-align:right;">
                         <strong>${formatCurrency(value)}</strong>
                         <br/>${percentage}%
                     </span>`;
+            },
+            fontSize: '13px',
+            markers: {
+                size: 10,
+                offsetX: -3,
             },
         },
         tooltip: {
@@ -111,16 +116,16 @@ const DespesasPorUtilidade = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 400,
+                        height: 380,
                     },
                 },
             },
             {
                 breakpoint: 1150,
                 options: {
-                    chart: {
-                        height: 350,
-                    },
+                    // chart: {
+                    //     height: 350,
+                    // },
                     plotOptions: {
                         pie: {
                             donut: {
@@ -140,8 +145,8 @@ const DespesasPorUtilidade = () => {
         ],
     };
     return (
-        <section className='despesas-por-utilidade'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={450} />
+        <section className='despesas-por-utilidade donut-chart'>
+            <Chart options={chartOptions} series={chartData.values} type="donut" height={430} />
         </section>
     )
 }

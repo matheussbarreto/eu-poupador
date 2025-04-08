@@ -5,35 +5,29 @@
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text {
     display: flex;
-    min-width: 190px;
+    min-width: 220px;
+    justify-content: space-between;
 }
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-series:last-child .apexcharts-legend-text {
     font-weight: 700 !important;
 }
 
-.despesas-por-tipo-gasto-previsto .apexcharts-legend-text span {
-    flex: 1 1;
-    text-align: left;
-}
-
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-series:last-child .apexcharts-legend-marker {
     display: none;
 }
 
-
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text span {
-    flex: 1;
+    /* flex: 1; */
     text-align: left;
 }
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text span:last-child {
-    flex: 2;
-    text-align: right;
+    width: 60%;
 }
 
 @media only screen and (max-width: 1300px) {
-    .despesas-por-tipo-gasto-previsto {
+    /* .despesas-por-tipo-gasto-previsto {
         width: 66.25%;
-    }
+    } */
 }

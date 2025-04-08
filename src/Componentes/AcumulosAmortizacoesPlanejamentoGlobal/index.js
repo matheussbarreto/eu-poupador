@@ -173,7 +173,7 @@ const AcumulosAmortizacoesPlanejamentoGlobal = () => {
     const totalAportado = userInvestmentArray.reduce((sum, inv) => sum + inv.current, 0);
     const totalObjetivo = userInvestmentArray.reduce((sum, inv) => sum + inv.goal, 0);
     const diferencaGeral = totalAportado - totalObjetivo;
-    const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1);
+    const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1).replace('.', ',');
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
 
     return (

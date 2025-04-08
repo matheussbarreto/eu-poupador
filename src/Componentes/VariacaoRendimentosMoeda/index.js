@@ -73,7 +73,7 @@ const VariacaoRendimentosMoeda = () => {
 
     const diferencaGeral = chartData.mes_atual - chartData.mes_anterior;
     const diferencaPercentual = chartData.mes_anterior
-        ? ((diferencaGeral / chartData.mes_anterior) * 100).toFixed(2)
+        ? ((diferencaGeral / chartData.mes_anterior) * 100).toFixed(2).replace('.', ',')
         : 0;
 
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');

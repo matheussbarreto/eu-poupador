@@ -90,6 +90,7 @@ const DespesasGastoPrevistoCategoria = () => {
             colors: ['var(--red-color)'],
             markers: {
                 // colors: ['#8a8a8a'],
+                // size: 10,
             },
             dataLabels: {
                 // enabled: true,
@@ -176,7 +177,7 @@ const DespesasGastoPrevistoCategoria = () => {
                 goals: [{
                     name: 'Previsto',
                     value: item.previsto || 0,
-                    strokeWidth: 3,
+                    strokeWidth: 5,
                     strokeColor: 'var(--tertiary-color)'
                 }]
             }));
@@ -205,7 +206,7 @@ const DespesasGastoPrevistoCategoria = () => {
                         customLegendItems: [
                             `<span>Gasto</span> <span>${formatCurrency(totalGasto)}</span>`,
                             `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`,
-                            `<span>Diferença</span> <span style="color: ${valueColor};">${formatCurrency(diferencaGeral)}</span>`
+                            `<span>Diferença</span> <span style="color: ${valueColor};">${(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}</span>`
                         ]
                     }
                 }

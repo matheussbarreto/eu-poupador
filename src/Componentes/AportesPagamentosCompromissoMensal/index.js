@@ -171,7 +171,7 @@ const AportesPagamentosCompromissoMensal = () => {
 
     const totalAportado = userInvestmentArray.reduce((sum, inv) => sum + inv.current, 0);
     const totalObjetivo = userInvestmentArray.reduce((sum, inv) => sum + inv.goal, 0);
-    const diferencaPercentual = ((totalAportado / totalObjetivo) * 100).toFixed(1);
+    const diferencaPercentual = ((totalAportado / totalObjetivo) * 100).toFixed(1).replace('.', ',');
 
 
     const options = {

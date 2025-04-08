@@ -195,7 +195,7 @@ const ReceitasRecebidoPrevistoCategoria = () => {
                         customLegendItems: [
                             `<span>Recebido</span> <span>${formatCurrency(totalRecebido)}</span>`,
                             `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`,
-                            `<span>Diferença</span> <span style="color: ${valueColor};">${formatCurrency(diferencaGeral)}</span>`
+                            `<span>Diferença</span> <span style="color: ${valueColor};">${(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}</span>`
                         ]
                     }
                 }

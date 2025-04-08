@@ -74,7 +74,7 @@ const DespesasPorCategoria = () => {
             },
         },
         title: {
-            text: "Despesas por categoria",
+            text: "Despesas Por Categoria",
             align: "left",
             style: {
                 fontFamily: '"Segoe UI", "Cocogoose", "Didact Gothic", sans-serif',
@@ -92,13 +92,18 @@ const DespesasPorCategoria = () => {
             position: "bottom",
             formatter: function (seriesName, opts) {
                 const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2);
+                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
                 return ` 
                     <span><strong>${seriesName}</strong><br/>Porcentagem</span>
                     <span style="margin-left: auto; text-align:right;">
                         <strong>${formatCurrency(value)}</strong>
                         <br/>${percentage}%
                     </span>`;
+            },
+            fontSize: '13px',
+            markers: {
+                size: 10,
+                offsetX: -3,
             },
         },
         tooltip: {
@@ -113,16 +118,16 @@ const DespesasPorCategoria = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 580,
+                        height: 590,
                     },
                 },
             },
             {
                 breakpoint: 1150,
                 options: {
-                    chart: {
-                        height: 530,
-                    },
+                    // chart: {
+                    //     height: 590,
+                    // },
                     plotOptions: {
                         pie: {
                             donut: {
@@ -142,8 +147,8 @@ const DespesasPorCategoria = () => {
         ],
     };
     return (
-        <section className='despesas-por-categoria'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={630} />
+        <section className='despesas-por-categoria donut-chart'>
+            <Chart options={chartOptions} series={chartData.values} type="donut" height={640} />
         </section>
     )
 }

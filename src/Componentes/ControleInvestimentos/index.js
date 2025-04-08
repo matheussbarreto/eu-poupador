@@ -32,7 +32,7 @@ const ControleInvestimentos = () => {
                 if (opts.seriesIndex === 1) {
                     const mesAnterior = opts.w.config.series[0].data[opts.dataPointIndex];
                     const diferenca = val - mesAnterior;
-                    const percentual = ((diferenca / mesAnterior) * 100).toFixed(1);
+                    const percentual = ((diferenca / mesAnterior) * 100).toFixed(1).replace('.', ',');
                     return `${formatCurrency(val)} (${percentual}%)`;
                 }
                 return `${formatCurrency(val)}`;
@@ -65,7 +65,7 @@ const ControleInvestimentos = () => {
         const totalAnterior = data.reduce((sum, item) => sum + item.mes_anterior, 0);
         const totalAtual = data.reduce((sum, item) => sum + item.mes_atual, 0);
         const diferencaGeral = totalAtual - totalAnterior;
-        const diferencaPercentual = ((diferencaGeral / totalAnterior) * 100).toFixed(1);
+        const diferencaPercentual = ((diferencaGeral / totalAnterior) * 100).toFixed(1).replace('.', ',');
 
         setTotalAnterior(totalAnterior);
         setTotalAtual(totalAtual);

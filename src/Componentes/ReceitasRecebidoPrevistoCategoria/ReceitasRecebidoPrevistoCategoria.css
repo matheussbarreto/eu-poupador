@@ -5,17 +5,14 @@
 
 .receitas-recebido-previsto-categoria .apexcharts-legend-text {
     display: flex;
-    min-width: 180px;
+    min-width: 220px;
+    justify-content: space-between;
 }
 
 .receitas-recebido-previsto-categoria .apexcharts-legend-series:last-child .apexcharts-legend-text {
     font-weight: 700 !important;
 }
 
-.receitas-recebido-previsto-categoria .apexcharts-legend-text span {
-    flex: 1 1;
-    text-align: left;
-}
 
 .receitas-recebido-previsto-categoria .apexcharts-legend-series:last-child .apexcharts-legend-marker {
     display: none;
@@ -23,13 +20,12 @@
 
 
 .receitas-recebido-previsto-categoria .apexcharts-legend-text span {
-    flex: 1;
+    /* flex: 1; */
     text-align: left;
 }
 
 .receitas-recebido-previsto-categoria .apexcharts-legend-text span:last-child {
-    flex: 2;
-    text-align: right;
+    width: 60%;
 }
 
 @media only screen and (max-width: 1300px) {

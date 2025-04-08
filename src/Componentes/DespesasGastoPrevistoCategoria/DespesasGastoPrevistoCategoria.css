@@ -1,35 +1,28 @@
 .despesas-gasto-previsto-categoria {
-    /* flex: 3; */
     width: 70%;
 }
 
 .despesas-gasto-previsto-categoria .apexcharts-legend-text {
     display: flex;
-    min-width: 180px;
+    min-width: 220px;
+    justify-content: space-between;
 }
 
 .despesas-gasto-previsto-categoria .apexcharts-legend-series:last-child .apexcharts-legend-text {
     font-weight: 700 !important;
 }
 
-.despesas-gasto-previsto-categoria .apexcharts-legend-text span {
-    flex: 1 1;
-    text-align: left;
-}
-
 .despesas-gasto-previsto-categoria .apexcharts-legend-series:last-child .apexcharts-legend-marker {
     display: none;
 }
 
-
 .despesas-gasto-previsto-categoria .apexcharts-legend-text span {
-    flex: 1;
+    /* flex: 1; */
     text-align: left;
 }
 
 .despesas-gasto-previsto-categoria .apexcharts-legend-text span:last-child {
-    flex: 2;
-    text-align: right;
+    width: 60%;
 }
 
 @media only screen and (max-width: 1300px) {

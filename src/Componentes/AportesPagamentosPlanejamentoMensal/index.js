@@ -165,6 +165,100 @@ const AportesPagamentosPlanejamentoMensal = () => {
                     montante: 1500,
                     icon: "images.PorquinhoGerais",
                 },
+                {
+                    id: "inv_001",
+                    nome: "Fundo de Ações",
+                    current: 15000.0,
+                    aporte: 500.0,
+                    goal: 20000.0,
+                    goalHistory: [
+                        { date: "2024-01", goal: 18000.0 },
+                        { date: "2024-02", goal: 20000.0 },
+                    ],
+                    objective: "Investimento",
+                    montante: 50000.0,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_002",
+                    nome: "Compra de Casa",
+                    current: 50000.0,
+                    aporte: 1000.0,
+                    goal: 100000.0,
+                    goalHistory: [
+                        { date: "2024-01", goal: 95000.0 },
+                        { date: "2024-02", goal: 100000.0 },
+                    ],
+                    objective: "Bem",
+                    montante: 500000.0,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_003",
+                    nome: "Compra de Carro",
+                    current: 0,
+                    aporte: 1000.0,
+                    goal: 80000.0,
+                    goalHistory: [
+                        { date: "2024-01", goal: 50000.0 },
+                        { date: "2024-02", goal: 80000.0 },
+                    ],
+                    objective: "Bem",
+                    montante: 0,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_004",
+                    nome: "Carteira de Motorista do Junior",
+                    current: 0,
+                    aporte: 100.0,
+                    goal: 1000.0,
+                    goalHistory: [
+                        { date: "2024-02", goal: 1000.0 },
+                    ],
+                    objective: "Investimento",
+                    montante: 0,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_005",
+                    nome: "Reserva de emergência",
+                    current: 1500,
+                    aporte: 500.0,
+                    goal: 10000.0,
+                    goalHistory: [
+                        { date: "2024-02", goal: 10000.0 },
+                    ],
+                    objective: "Reserva",
+                    montante: 1500,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_006",
+                    nome: "Viagem de férias",
+                    current: 2500,
+                    aporte: 500.0,
+                    goal: 15000.0,
+                    goalHistory: [
+                        { date: "2024-02", goal: 15000.0 },
+                    ],
+                    objective: "Bem",
+                    montante: 1500,
+                    icon: "images.PorquinhoGerais",
+                },
+                {
+                    id: "inv_006",
+                    nome: "Viagem de férias",
+                    current: 2500,
+                    aporte: 500.0,
+                    goal: 15000.0,
+                    goalHistory: [
+                        { date: "2024-02", goal: 15000.0 },
+                    ],
+                    objective: "Bem",
+                    montante: 1500,
+                    icon: "images.PorquinhoGerais",
+                },
             ];
             setUserInvestmentArray(fakeData);
         }, 100);
@@ -173,7 +267,7 @@ const AportesPagamentosPlanejamentoMensal = () => {
     const totalAportado = userInvestmentArray.reduce((sum, inv) => sum + inv.current, 0);
     const totalObjetivo = userInvestmentArray.reduce((sum, inv) => sum + inv.goal, 0);
     const diferencaGeral = totalAportado - totalObjetivo;
-    const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1);
+    const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1).replace('.', ',');
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
 
     return (

@@ -2,23 +2,18 @@
     width: 29%;
 }
 
-.receitas-recebido-previsto h2 {
-    font-size: 1.3em;
-    color: #24b7d9;
-    margin: 10px auto;
-    font-weight: bold;
-}
-
 .receitas-recebido-previsto .legenda {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 14px;
+    margin-top: 12px;
 }
 
 .receitas-recebido-previsto .legenda-serie {
     display: flex;
-    min-width: 190px;
+    min-width: 260px;
+    justify-content: space-between;
 }
 
 .receitas-recebido-previsto .legenda-serie:last-child {
@@ -26,13 +21,14 @@
 }
 
 .receitas-recebido-previsto .legenda-serie span {
-    flex: 1;
+    /* flex: 1; */
     text-align: left;
 }
 
 .receitas-recebido-previsto .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
+    /* flex: 2;
+    text-align: right; */
+    width: 60%;
 }
 
 @media only screen and (max-width: 1300px) {

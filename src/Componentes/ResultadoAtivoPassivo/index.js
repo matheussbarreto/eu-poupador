@@ -90,7 +90,7 @@ const ResultadoAtivoPassivo = () => {
             position: "bottom",
             formatter: function (seriesName, opts) {
                 const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2);
+                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
                 return ` 
                     <span><strong>${seriesName}</strong><br/>Porcentagem</span>
                     <span style="margin-left: auto; text-align:right;">
@@ -140,7 +140,7 @@ const ResultadoAtivoPassivo = () => {
         ],
     };
     return (
-        <section className='despesas-por-utilidade'>
+        <section className='resultado-ativo-passivo donut-chart'>
             <Chart options={chartOptions} series={chartData.values} type="donut" height={450} />
         </section>
     )
