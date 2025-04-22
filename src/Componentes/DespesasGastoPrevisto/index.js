@@ -116,7 +116,7 @@ const DespesasGastoPrevisto = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Diferença</span>
-                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
+                    <span style={{ color: valueColor }}>{(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
                 </span>
             </div>
             <Chart

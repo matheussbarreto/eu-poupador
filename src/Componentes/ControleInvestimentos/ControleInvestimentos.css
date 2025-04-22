@@ -6,37 +6,21 @@
 }
 
 .controle-investimentos h2 {
-    font-size: 1.3em;
-    color: #24b7d9;
-    margin: 10px;
     margin-right: auto;
-    font-weight: bold;
+    margin-bottom: 12px;
 }
 
 .controle-investimentos .legenda {
-    display: flex;
-    flex-direction: column;
     align-items: flex-end;
-    gap: 10px;
+    margin-top: 0;
 }
 
 .controle-investimentos .legenda-serie {
-    display: flex;
-    min-width: 220px;
+    min-width: 290px;
 }
 
 .controle-investimentos .legenda-serie:last-child {
     font-weight: bold;
-}
-
-.controle-investimentos .legenda-serie span {
-    flex: 1;
-    text-align: left;
-}
-
-.controle-investimentos .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
 }
 
 @media only screen and (max-width: 1300px) {

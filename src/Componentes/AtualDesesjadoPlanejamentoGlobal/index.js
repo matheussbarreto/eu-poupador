@@ -177,11 +177,11 @@ const AtualDesesjadoPlanejamentoGlobal = () => {
 
     const chartSeries = [
         {
-            name: "Realizado",
+            name: "Atual",
             data: [totalAportado],
         },
         {
-            name: "Previsto",
+            name: "Desejado",
             data: [totalObjetivo],
         },
     ];
@@ -242,7 +242,7 @@ const AtualDesesjadoPlanejamentoGlobal = () => {
                         />
                         <span className="state blue">
                             <label>
-                                Realizado
+                                Atual
                             </label>
                         </span>
                     </span>
@@ -257,7 +257,7 @@ const AtualDesesjadoPlanejamentoGlobal = () => {
                         />
                         <span className="state gray">
                             <label>
-                                Previsto
+                                Desejado
                             </label>
                         </span>
                     </span>

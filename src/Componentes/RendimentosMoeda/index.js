@@ -50,7 +50,7 @@ const RendimentosMoeda = () => {
   // Dados do gráfico
   const chartSeries = [
     {
-      name: "Ativos",
+      name: "Rendimento Atual",
       data: [300, 305, 300, 315, 300, 325, 330, 600],
     },
   ];
@@ -71,7 +71,7 @@ const RendimentosMoeda = () => {
         options={chartOptions}
         series={chartSeries}
         type="line"
-        height={300}
+        height={310}
       />
     </section>
   )

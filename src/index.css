@@ -108,11 +108,38 @@ strong {
   width: 100%;
 }
 
-@media (max-width: 1150px) {
+@media (max-width: 1330px) {
   .donut-chart .apexcharts-legend-series {
     width: 95%;
   }
 }
+
+/* End Donut */
+
+/* Legend chart css template*/
+.legenda {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.legenda-serie {
+  display: flex;
+  min-width: 260px;
+  justify-content: space-between;
+}
+
+.legenda-serie span {
+  text-align: left;
+}
+
+.legenda-serie span:last-child {
+  width: 60%;
+}
+
+/* End Legend */
 
 @media only screen and (max-width: 980px) {
   .container-main {

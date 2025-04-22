@@ -72,7 +72,7 @@ const ReceitasRecebidoPrevistoCategoria = () => {
                 fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif',
             },
             title: {
-                text: 'Receitas: Recebido Vs. Previsto',
+                text: 'Receitas: Recebido vs. Previsto',
                 style: {
                     color: "var(--primary-color)",
                     fontSize: 20

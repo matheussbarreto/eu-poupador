@@ -42,8 +42,6 @@
 .pretty .state label:after,
 .pretty .state label:before {
     content: '';
-    width: calc(1em);
-    height: calc(1em);
     width: 14px;
     height: 14px;
     display: block;

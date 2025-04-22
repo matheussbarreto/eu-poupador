@@ -80,6 +80,8 @@ const AcumulosAmortizacoesPlanejamentoGlobal = () => {
     // )
     const [userInvestmentArray, setUserInvestmentArray] = useState([]);
     const [hideCompletedBem, setHideCompletedBem] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
+    const itemsPerPage = 12;
 
     useEffect(() => {
         setTimeout(() => {
@@ -170,26 +172,41 @@ const AcumulosAmortizacoesPlanejamentoGlobal = () => {
         }, 100);
     }, []);
 
+    const filteredInvestments = userInvestmentArray.filter((investment) => {
+        const percentage = ((investment.current / investment.goal) * 100).toFixed(1);
+        return !(hideCompletedBem && (percentage === "100.0"));
+    });
+
+    const totalPages = Math.ceil(filteredInvestments.length / itemsPerPage);
+    const paginatedInvestments = filteredInvestments.slice(
+        currentPage * itemsPerPage,
+        currentPage * itemsPerPage + itemsPerPage
+    );
+
     const totalAportado = userInvestmentArray.reduce((sum, inv) => sum + inv.current, 0);
     const totalObjetivo = userInvestmentArray.reduce((sum, inv) => sum + inv.goal, 0);
     const diferencaGeral = totalAportado - totalObjetivo;
-    const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1).replace('.', ',');
+    // const diferencaPercentual = ((diferencaGeral / totalObjetivo) * 100).toFixed(1).replace('.', ',');
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
+
+    const handlePrevPage = () => {
+        if (currentPage > 0) setCurrentPage(currentPage - 1);
+    };
+
+    const handleNextPage = () => {
+        if (currentPage < totalPages - 1) setCurrentPage(currentPage + 1);
+    };
 
     return (
         <section className='acumulo-amortizacoes-planejamento-global'>
-            <h2>Planejamento Global: Acúmulos e Amortizações</h2>
+            <h2>Planejamento Global:<br />Acúmulos e Amortizações</h2>
             <div className="legenda">
                 <span className="legenda-serie ">
                     <span className="pretty">
-                        <input
-                            type="checkbox"
-                        // checked={legend.checked}
-                        // onChange={() => toggleSeries(legend.name)}
-                        />
+                        <input type="checkbox" />
                         <span className="state blue">
                             <label>
-                                Realizado
+                                Atual
                             </label>
                         </span>
                     </span>
@@ -197,14 +214,10 @@ const AcumulosAmortizacoesPlanejamentoGlobal = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty">
-                        <input
-                            type="checkbox"
-                        // checked={legend.checked}
-                        // onChange={() => toggleSeries(legend.name)}
-                        />
+                        <input type="checkbox" />
                         <span className="state gray">
                             <label>
-                                Previsto
+                                Desejado
                             </label>
                         </span>
                     </span>
@@ -212,59 +225,70 @@ const AcumulosAmortizacoesPlanejamentoGlobal = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Diferença</span>
-                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
+                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}</span>
                 </span>
             </div>
 
-            {userInvestmentArray.map((investment) => {
-                const percentage = ((investment.current / investment.goal) * 100).toFixed(1);
-                if (hideCompletedBem && percentage === "100.0") {
-                    return null;
-                }
+            <div className="grid-objetivos">
+                {paginatedInvestments.map((investment) => {
+                    const percentage = ((investment.current / investment.goal) * 100).toFixed(1);
 
-                const options = {
-                    chart: {
-                        type: "radialBar",
-                    },
-                    colors: ["var(--primary-color)"],
-                    plotOptions: {
-                        radialBar: {
-                            hollow: {
-                                size: "65%",
-                                background: "var(--primary-color)",
-                            },
-                            track: {
-                                color: "#000",
-                                background: "var(--tertiary-color)",
-                            },
-                            dataLabels: {
-                                name: {
-                                    show: false,
+                    const options = {
+                        chart: {
+                            type: "radialBar",
+                        },
+                        colors: ["var(--primary-color)"],
+                        plotOptions: {
+                            radialBar: {
+                                hollow: {
+                                    size: "65%",
+                                    background: "var(--primary-color)",
                                 },
-                                value: {
-                                    color: "#ffffff",
-                                    offsetY: 6,
-                                    formatter: () => `${percentage}%`,
+                                track: {
+                                    color: "#000",
+                                    background: "var(--tertiary-color)",
+                                },
+                                dataLabels: {
+                                    name: {
+                                        show: false,
+                                    },
+                                    value: {
+                                        color: "#ffffff",
+                                        offsetY: 6,
+                                        formatter: () => `${percentage}%`,
+                                    },
                                 },
                             },
                         },
-                    },
-                };
+                    };
 
-                return (
-                    <div key={investment.id} className="objetivos">
-                        <p className="titulo">{investment.nome}</p>
-                        <Chart options={options} series={[percentage]} type="radialBar" height={130} />
-                        <p>{formatCurrency(investment.current)}</p>
-                        <p style={{ color: 'var(--tertiary-color)' }}>{formatCurrency(investment.goal, 0)}</p>
-                    </div>
-                );
-            })}
+                    return (
+                        <div key={investment.id} className="objetivos">
+                            <p className="titulo">{investment.nome}</p>
+                            <Chart options={options} series={[percentage]} type="radialBar" height={130} />
+                            <p className="subtitulo">{formatCurrency(investment.current)}</p>
+                            <p style={{ color: 'var(--tertiary-color)' }}>{formatCurrency(investment.goal, 0)}</p>
+                        </div>
+                    );
+                })}
+            </div>
+            
+            {totalPages > 1 && (
+                <div className="paginacao">
+                    <button onClick={handlePrevPage} disabled={currentPage === 0}>&lt;</button>
+                    <span>Página {currentPage + 1} de {totalPages}</span>
+                    <button onClick={handleNextPage} disabled={currentPage === totalPages - 1}>&gt;</button>
+                </div>
+            )}
+
             <label className="ocultar-objetivos">
                 <input
                     type="checkbox"
                     checked={hideCompletedBem}
-                    onChange={() => setHideCompletedBem(!hideCompletedBem)}
+                    onChange={() => {
+                        setHideCompletedBem(!hideCompletedBem);
+                        setCurrentPage(0);
+                    }}
                 />
                 <span>Ocultar objetivos concluídos</span>
             </label>

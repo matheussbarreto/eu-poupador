@@ -2,23 +2,8 @@
     width: 29%;
 }
 
-.variacao-patrimonial h2 {
-    font-size: 1.3em;
-    color: #24b7d9;
-    margin: 10px auto;
-    font-weight: bold;
-}
-
-.variacao-patrimonial .legenda {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-}
-
 .variacao-patrimonial .legenda-serie {
-    display: flex;
-    min-width: 220px;
+    min-width: 290px;
 }
 
 .variacao-patrimonial .legenda-serie:last-child {
@@ -26,13 +11,11 @@
 }
 
 .variacao-patrimonial .legenda-serie span {
-    flex: 1;
     text-align: left;
 }
 
 .variacao-patrimonial .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
+    width: 60%;
 }
 
 @media only screen and (max-width: 1300px) {

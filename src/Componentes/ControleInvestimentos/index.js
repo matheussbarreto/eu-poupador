@@ -109,7 +109,7 @@ const ControleInvestimentos = () => {
                     <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
                 </span>
             </div>
-            <Chart options={chartOptions} series={chartSeries} type="bar" height={400} />
+            <Chart options={chartOptions} series={chartSeries} type="bar" height={480} />
         </section>
     );
 };

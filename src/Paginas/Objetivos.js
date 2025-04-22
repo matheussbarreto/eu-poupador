@@ -3,7 +3,7 @@ import AcumulosAmortizacoesPlanejamentoGlobal from "../Componentes/AcumulosAmort
 import AportesPagamentosCompromissoMensal from "../Componentes/AportesPagamentosCompromissoMensal";
 import AportesPagamentosPlanejamentoMensal from "../Componentes/AportesPagamentosPlanejamentoMensal";
 import AtualDesesjadoPlanejamentoGlobal from "../Componentes/AtualDesesjadoPlanejamentoGlobal";
-import RealizadoPrevistoCompromissoMensal from "../Componentes/RealizadoPrevistoCompromissoMensal";
+import RealizadoPrevistoPlanejamentoMensal from "../Componentes/RealizadoPrevistoPlanejamentoMensal";
 import TituloDaPagina from "../Componentes/TituloDaPagina"
 
 const Objetivos = () => {
@@ -14,7 +14,7 @@ const Objetivos = () => {
             <AportesPagamentosPlanejamentoMensal />
             <div className="container-left">
                 <AportesPagamentosCompromissoMensal />
-                <RealizadoPrevistoCompromissoMensal />
+                <RealizadoPrevistoPlanejamentoMensal />
             </div>
             <AcumulosAmortizacoesPlanejamentoGlobal />
             <div className="container-left">

@@ -73,7 +73,7 @@ const DespesasGastoPrevistoCategoria = () => {
                 fontWeight: '400',
             },
             title: {
-                text: 'Despesas: Gasto Vs. Previsto',
+                text: 'Despesas: Gasto vs. Previsto',
                 style: {
                     fontFamily: '"Segoe UI", "Cocogoose", sans-serif',
                     color: "var(--primary-color)",

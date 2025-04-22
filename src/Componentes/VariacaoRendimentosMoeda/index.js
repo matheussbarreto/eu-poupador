@@ -105,7 +105,7 @@ const VariacaoRendimentosMoeda = () => {
                     <span>{formatCurrency(chartData.mes_anterior)}</span>
                 </span>
                 <span className="legenda-serie ">
-                    <span className="pretty diferenca">Diferença</span>
+                    <span className="pretty diferenca">Variação</span>
                     <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
                 </span>
             </div>
@@ -113,7 +113,7 @@ const VariacaoRendimentosMoeda = () => {
                 options={chartOptions}
                 series={chartSeries}
                 type="bar"
-                height={300}
+                height={250}
             />
         </section>
     );

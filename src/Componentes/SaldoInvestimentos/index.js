@@ -71,14 +71,7 @@ const SaldoInvestimentos = () => {
           <span>{formatCurrency(33500)}</span>
         </span>
         <span className="legenda-serie ">
-          <span className="pretty">
-            <input type="checkbox" />
-            <span className="state gray">
-              <label>
-                Mês Anterior
-              </label>
-            </span>
-          </span>
+          <span className="pretty diferenca">Mês Anterior</span>
           <span>{formatCurrency(33000)}</span>
         </span>
         <span className="legenda-serie ">

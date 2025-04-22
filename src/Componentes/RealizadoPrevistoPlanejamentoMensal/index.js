@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import Chart from "react-apexcharts";
 import { formatCurrency } from "../utils/formatCurrency";
-import './RealizadoPrevistoCompromissoMensal.css';
+import './RealizadoPrevistoPlanejamentoMensal.css';
 
-const RealizadoPrevistoCompromissoMensal = () => {
+const RealizadoPrevistoPlanejamentoMensal = () => {
     // const [data, setData] = useState([]);
     // const [labels, setLabels] = useState([]);
     // // const [loading, setLoading] = useState(true);
@@ -172,7 +172,8 @@ const RealizadoPrevistoCompromissoMensal = () => {
     const totalAportado = userInvestmentArray.reduce((sum, inv) => sum + inv.current, 0);
     const totalObjetivo = userInvestmentArray.reduce((sum, inv) => sum + inv.goal, 0);
     const diferencaGeral = totalAportado - totalObjetivo;
-    const diferencaPercentual = ((totalAportado / totalObjetivo) * 100).toFixed(1).replace('.', ',');
+    // const diferencaPercentual = ((totalAportado / totalObjetivo) * 100).toFixed(1).replace('.', ',');
+    const diferencaPercentual = ((1 - (totalAportado / totalObjetivo)) * -100).toFixed(1).replace('.', ',');
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
 
     const chartSeries = [
@@ -230,19 +231,15 @@ const RealizadoPrevistoCompromissoMensal = () => {
         },
     };
     return (
-        <section className='realizado-previsto-compromisso-mensal'>
-            <h2>Planejamento Mensal: Realizado vs. previsto</h2>
+        <section className='realizado-previsto-planejamento-mensal'>
+            <h2>Planejamento Mensal:<br />Realizado vs. Previsto</h2>
             <div className="legenda">
                 <span className="legenda-serie ">
                     <span className="pretty">
-                        <input
-                            type="checkbox"
-                        // checked={legend.checked}
-                        // onChange={() => toggleSeries(legend.name)}
-                        />
+                        <input type="checkbox" />
                         <span className="state blue">
                             <label>
-                                Realizado
+                                Atual
                             </label>
                         </span>
                     </span>
@@ -250,14 +247,10 @@ const RealizadoPrevistoCompromissoMensal = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty">
-                        <input
-                            type="checkbox"
-                        // checked={legend.checked}
-                        // onChange={() => toggleSeries(legend.name)}
-                        />
+                        <input type="checkbox" />
                         <span className="state gray">
                             <label>
-                                Previsto
+                                Desejado
                             </label>
                         </span>
                     </span>
@@ -265,7 +258,7 @@ const RealizadoPrevistoCompromissoMensal = () => {
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Diferença</span>
-                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
+                    <span style={{ color: valueColor }}>{(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}<br />({(diferencaGeral >= 0 ? '+' : '') + diferencaPercentual}%)</span>
                 </span>
             </div>
             <Chart
@@ -278,4 +271,4 @@ const RealizadoPrevistoCompromissoMensal = () => {
     );
 }
 
-export default RealizadoPrevistoCompromissoMensal;
+export default RealizadoPrevistoPlanejamentoMensal;

@@ -79,7 +79,7 @@ const VariacaoRendimentosPercentual = () => {
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
 
     return (
-        <section className="variacao-rendimentos-moeda">
+        <section className="variacao-rendimentos-percentual">
             <h2 className="">Variação dos Rendimentos</h2>
             <div className="legenda">
                 <span className="legenda-serie ">
@@ -91,7 +91,7 @@ const VariacaoRendimentosPercentual = () => {
                             </label>
                         </span>
                     </span>
-                    <span>{chartData.mes_atual}% a.a.</span>
+                    <span>{chartData.mes_atual.toFixed(2)}% a.a.</span>
                 </span>
                 <span className="legenda-serie">
                     <span className="pretty">
@@ -102,18 +102,18 @@ const VariacaoRendimentosPercentual = () => {
                             </label>
                         </span>
                     </span>
-                    <span>{chartData.mes_anterior}% a.a.</span>
+                    <span>{chartData.mes_anterior.toFixed(2)}% a.a.</span>
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Variação</span>
-                    <span style={{ color: valueColor }}>{diferencaGeral}% a.a.</span>
+                    <span style={{ color: valueColor }}>{diferencaGeral.toFixed(2)}% a.a.</span>
                 </span>
             </div>
             <Chart
                 options={chartOptions}
                 series={chartSeries}
                 type="bar"
-                height={300}
+                height={250}
             />
         </section>
     );

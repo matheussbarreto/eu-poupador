@@ -205,9 +205,9 @@ const AportesPagamentosCompromissoMensal = () => {
     };
     return (
         <section className='aportes-pagamentos-compromisso-mensal'>
-            <h2>Grau de Compromisso Mensal: Aportes e Pagamentos</h2>
+            <h2>Grau de Compromisso Mensal:<br/>Aportes e Pagamentos</h2>
             <div className="objetivos">
-                <Chart options={options} series={[diferencaPercentual]} type="radialBar" height={250} />
+                <Chart options={options} series={[diferencaPercentual]} type="radialBar" height={200} />
                 <p>{formatCurrency(totalAportado)}</p>
                 <p style={{ color: 'var(--tertiary-color)' }}>{formatCurrency(totalObjetivo, 0)}</p>
             </div>

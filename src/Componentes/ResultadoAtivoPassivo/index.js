@@ -98,6 +98,11 @@ const ResultadoAtivoPassivo = () => {
                         <br/>${percentage}%
                     </span>`;
             },
+            fontSize: '13px',
+            markers: {
+                size: 10,
+                offsetX: -3,
+            },
         },
         tooltip: {
             enabled: false,

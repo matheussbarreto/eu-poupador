@@ -5,21 +5,60 @@
     justify-content: start;
     flex-wrap: wrap;
     gap: 10px;
-    padding-bottom: 70px;
+    padding-bottom: 50px;
 }
 
 .aportes-pagamentos-planejamento-mensal h2 {
     width: 50%;
-    font-size: 1.3em;
-    color: var(--primary-color);
-    margin: 10px auto;
-    font-weight: bold;
 }
 
 .aportes-pagamentos-planejamento-mensal .titulo {
     min-height: 2rem;
     font-weight: 700;
+    margin-bottom: -10px;
 }
+
+.aportes-pagamentos-planejamento-mensal .subtitulo {
+    margin-top: -10px;
+    font-weight: bold;
+}
+
+/* Slider */
+.grid-objetivos {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px 10px;
+}
+
+.paginacao {
+    margin: 0 auto;
+    color: var(--tertiary-color);
+}
+
+.paginacao button {
+    width: 36px;
+    height: 36px;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    margin: 10px 10px;
+    border: none;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    transition: background-color 0.3s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.paginacao button:hover {
+    background-color: #00a6d6;
+}
+
+.paginacao button:disabled {
+    background-color: var(--tertiary-color);
+    cursor: not-allowed;
+}
+/* End */
 
 .aportes-pagamentos-planejamento-mensal .objetivos {
     width: calc(25% - 8px);
@@ -28,31 +67,13 @@
 }
 
 .aportes-pagamentos-planejamento-mensal .legenda {
-    display: flex;
-    flex-direction: column;
     align-items: flex-end;
     width: calc(50% - 10px);
     margin: 10px 0;
-    gap: 10px;
-}
-
-.aportes-pagamentos-planejamento-mensal .legenda-serie {
-    display: flex;
-    min-width: 230px;
 }
 
 .aportes-pagamentos-planejamento-mensal .legenda-serie:last-child {
     font-weight: bold;
-}
-
-.aportes-pagamentos-planejamento-mensal .legenda-serie span {
-    flex: 1;
-    text-align: left;
-}
-
-.aportes-pagamentos-planejamento-mensal .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
 }
 
 .aportes-pagamentos-planejamento-mensal .ocultar-objetivos {

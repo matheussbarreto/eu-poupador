@@ -6,14 +6,17 @@ import { formatCurrency } from "../utils/formatCurrency";
 const VariacaoPatrimonial = () => {
 
     const [chartData, setChartData] = useState({
-        received: 0,
-        expected: 0,
+        mesAtual: 0,
+        mesAnterior: 0,
     });
 
     useEffect(() => {
         // Simulação de requisição à API
         setTimeout(() => {
-            setChartData({ received: 10800, expected: 11900 });
+            setChartData({ 
+                    mesAtual: 10800, 
+                    mesAnterior: 11900 
+                });
         }, 1000);
     }, []);
 
@@ -62,18 +65,18 @@ const VariacaoPatrimonial = () => {
 
     const chartSeries = [
         {
-            name: "Atual",
-            data: [chartData.received],
+            name: "Mês Anterior",
+            data: [chartData.mesAnterior],
         },
         {
-            name: "Mês Anterior",
-            data: [chartData.expected],
+            name: "Atual",
+            data: [chartData.mesAtual],
         },
     ];
 
-    const diferencaGeral = chartData.received - chartData.expected;
-    const diferencaPercentual = chartData.expected
-        ? ((diferencaGeral / chartData.expected) * 100).toFixed(2).replace('.', ',')
+    const diferencaGeral = chartData.mesAtual - chartData.mesAnterior;
+    const diferencaPercentual = chartData.mesAnterior
+        ? ((diferencaGeral / chartData.mesAnterior) * 100).toFixed(2).replace('.', ',')
         : 0;
 
     const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
@@ -89,13 +92,13 @@ const VariacaoPatrimonial = () => {
                         // checked={legend.checked}
                         // onChange={() => toggleSeries(legend.name)}
                         />
-                        <span className="state gray">
+                        <span className="state dark-blue">
                             <label>
                                 Atual
                             </label>
                         </span>
                     </span>
-                    <span>{formatCurrency(chartData.received)}</span>
+                    <span>{formatCurrency(chartData.mesAtual)}</span>
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty">
@@ -104,13 +107,13 @@ const VariacaoPatrimonial = () => {
                         // checked={legend.checked}
                         // onChange={() => toggleSeries(legend.name)}
                         />
-                        <span className="state dark-blue">
+                        <span className="state gray">
                             <label>
                                 Mês Anterior
                             </label>
                         </span>
                     </span>
-                    <span>{formatCurrency(chartData.expected)}</span>
+                    <span>{formatCurrency(chartData.mesAnterior)}</span>
                 </span>
                 <span className="legenda-serie ">
                     <span className="pretty diferenca">Diferença</span>

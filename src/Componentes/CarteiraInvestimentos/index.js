@@ -143,7 +143,7 @@ const CarteiraInvestimentos = () => {
     };
     return (
         <section className='carteira-investimentos donut-chart'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={630} />
+            <Chart options={chartOptions} series={chartData.values} type="donut" height={650} />
         </section>
     )
 }

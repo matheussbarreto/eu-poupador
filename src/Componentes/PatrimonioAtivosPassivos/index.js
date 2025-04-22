@@ -49,7 +49,7 @@ const PatrimonioAtivosPassivos = () => {
     legend: {
       position: 'top',
       horizontalAlign: 'right',
-      offsetY: -30,
+      offsetY: -20,
       fontSize: 16,
       formatter: function (seriesName, opts) {
         const { series, seriesNames } = opts.w.globals;

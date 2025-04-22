@@ -103,6 +103,11 @@ const ResultadoAtivos = () => {
                         <br/>${percentage}%
                     </span>`;
             },
+            fontSize: '13px',
+            markers: {
+                size: 10,
+                offsetX: -3,
+            },
         },
         tooltip: {
             enabled: false,
@@ -146,7 +151,7 @@ const ResultadoAtivos = () => {
     };
     return (
         <section className='resultado-ativos donut-chart'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={570} />
+            <Chart options={chartOptions} series={chartData.values} type="donut" height={580} />
         </section>
     )
 }
