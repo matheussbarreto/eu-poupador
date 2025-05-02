@@ -120,14 +120,6 @@ const DespesasPorCategoria = () => {
                     chart: {
                         height: 590,
                     },
-                },
-            },
-            {
-                breakpoint: 1150,
-                options: {
-                    // chart: {
-                    //     height: 590,
-                    // },
                     plotOptions: {
                         pie: {
                             donut: {
@@ -136,12 +128,20 @@ const DespesasPorCategoria = () => {
                                         fontSize: '14px',
                                     },
                                     total: {
-                                        fontSize: '12px',
+                                        fontSize: '11px',
                                     }
                                 },
                             },
                         },
                     },
+                },
+            },
+            {
+                breakpoint: 1150,
+                options: {
+                    // chart: {
+                    //     height: 590,
+                    // },
                 },
             },
         ],

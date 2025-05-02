@@ -5,35 +5,6 @@
     gap: 10px;
 }
 
-.atual-desesjado-planejamento-global h2 {
-    font-size: 1.3em;
-    color: var(--primary-color);
-    margin: 10px auto;
-    font-weight: bold;
-}
-
-.atual-desesjado-planejamento-global .legenda {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-}
-
-.atual-desesjado-planejamento-global .legenda-serie {
-    display: flex;
-    min-width: 220px;
-}
-
 .atual-desesjado-planejamento-global .legenda-serie:last-child {
     font-weight: bold;
-}
-
-.atual-desesjado-planejamento-global .legenda-serie span {
-    flex: 1;
-    text-align: left;
-}
-
-.atual-desesjado-planejamento-global .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
 }

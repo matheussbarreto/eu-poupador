@@ -2,15 +2,8 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
-}
-
-.acumulos-amortizacoes-compromisso-global h2 {
-    font-size: 1.3em;
-    color: var(--primary-color);
-    margin: 10px auto;
-    font-weight: bold;
 }
 
 .acumulos-amortizacoes-compromisso-global .titulo {

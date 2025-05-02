@@ -166,7 +166,7 @@ const ReceitasRecebidoPrevistoCategoria = () => {
                 goals: [{
                     name: 'Previsto',
                     value: item.previsto || 0,
-                    strokeWidth: 3,
+                    strokeWidth: 5,
                     strokeColor: 'var(--tertiary-color)'
                 }]
             }));

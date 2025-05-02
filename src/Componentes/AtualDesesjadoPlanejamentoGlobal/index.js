@@ -231,7 +231,7 @@ const AtualDesesjadoPlanejamentoGlobal = () => {
     };
     return (
         <section className='atual-desesjado-planejamento-global'>
-            <h2>Planejamento Global: Atual vs. Desejado</h2>
+            <h2>Planejamento Global:<br/>Atual vs. Desejado</h2>
             <div className="legenda">
                 <span className="legenda-serie ">
                     <span className="pretty">

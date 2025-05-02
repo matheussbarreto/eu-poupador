@@ -120,7 +120,21 @@ const DespesasPorTipo = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 480,
+                        height: 465,
+                    },
+                    plotOptions: {
+                        pie: {
+                            donut: {
+                                labels: {
+                                    value: {
+                                        fontSize: '14px',
+                                    },
+                                    total: {
+                                        fontSize: '11px',
+                                    }
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -130,20 +144,6 @@ const DespesasPorTipo = () => {
                     // chart: {
                     //     height: 465,
                     // },
-                    plotOptions: {
-                        pie: {
-                            donut: {
-                                labels: {
-                                    value: {
-                                        fontSize: '14px',
-                                    },
-                                    total: {
-                                        fontSize: '12px',
-                                    }
-                                },
-                            },
-                        },
-                    },
                 },
             },
         ],

@@ -55,7 +55,7 @@ const PatrimonioAtivosPassivos = () => {
         const { series, seriesNames } = opts.w.globals;
         const currentValue = series[opts.seriesIndex].slice(-1)[0] || 0;
         const currentName = seriesNames[opts.seriesIndex];
-        const valueColor = currentName === 'Saldo'
+        const valueColor = currentName === 'Patrimônio'
           ? (currentValue < 0 ? '#ff1616' : '#24b7d9')
           : '#000';
 
@@ -82,7 +82,7 @@ const PatrimonioAtivosPassivos = () => {
       data: [1000, 3000, 3000, 6000, 6900, 4000, 9000, 3000, 3000, 6000, 6900, 4000, 9000, 3000, 3000, 6000, 6900, 4000, 9000, 3000, 3000, 6000],
     },
     {
-      name: "Patrimonio",
+      name: "Patrimônio",
       data: [2000, 1000, 500, -1000, -2000, 2000, -2000, 1000, 500, -1000, -2000, 2000, -2000, 1000, 500, -1000, -2000, 2000, -2000, 1000, 500, -1000]
     }
   ];

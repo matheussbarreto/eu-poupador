@@ -22,7 +22,7 @@ const SaldoReceitasDespesas = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, []);
+  }, [zoomEnabled]);
 
   const categories = ["Abr/2023", "Mai/2023", "Jun/2023", "Jul/2023", "Ago/2023", "Set/2023", "Out/2023", "Nov/2023", "Dez/2023", "Jan/2024", "Fev/2024", "Mar/2024", "Abr/2024", "Mai/2024", "Jun/2024", "Jul/2024", "Ago/2024", "Set/2024", "Out/2024", "Nov/2024", "Dez/2024", "Jan/2025"];
   const totalCategories = categories.length;

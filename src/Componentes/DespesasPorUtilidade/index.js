@@ -118,6 +118,20 @@ const DespesasPorUtilidade = () => {
                     chart: {
                         height: 380,
                     },
+                    plotOptions: {
+                        pie: {
+                            donut: {
+                                labels: {
+                                    value: {
+                                        fontSize: '14px',
+                                    },
+                                    total: {
+                                        fontSize: '11px',
+                                    }
+                                },
+                            },
+                        },
+                    },
                 },
             },
             {
@@ -126,20 +140,6 @@ const DespesasPorUtilidade = () => {
                     // chart: {
                     //     height: 350,
                     // },
-                    plotOptions: {
-                        pie: {
-                            donut: {
-                                labels: {
-                                    value: {
-                                        fontSize: '14px',
-                                    },
-                                    total:{
-                                        fontSize: '12px',
-                                    }
-                                },
-                            },
-                        },
-                    },
                 },
             },
         ],

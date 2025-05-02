@@ -208,7 +208,7 @@ const AportesPagamentosCompromissoMensal = () => {
             <h2>Grau de Compromisso Mensal:<br/>Aportes e Pagamentos</h2>
             <div className="objetivos">
                 <Chart options={options} series={[diferencaPercentual]} type="radialBar" height={200} />
-                <p>{formatCurrency(totalAportado)}</p>
+                <p style={{fontWeight: "bold"}}>{formatCurrency(totalAportado)}</p>
                 <p style={{ color: 'var(--tertiary-color)' }}>{formatCurrency(totalObjetivo, 0)}</p>
             </div>
         </section>

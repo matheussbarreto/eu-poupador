@@ -205,10 +205,10 @@ const AcumulosAmortizacoesCompromissoGlobal = () => {
     };
     return (
         <section className='acumulos-amortizacoes-compromisso-global'>
-            <h2>Grau de Compromisso Global: Acúmulos e Amortizações</h2>
+            <h2>Grau de Compromisso Global:<br/>Acúmulos e Amortizações</h2>
             <div className="objetivos">
-                <Chart options={options} series={[diferencaPercentual]} type="radialBar" height={250} />
-                <p>{formatCurrency(totalAportado)}</p>
+                <Chart options={options} series={[diferencaPercentual]} type="radialBar" height={200} />
+                <p style={{fontWeight: "bold"}}>{formatCurrency(totalAportado)}</p>
                 <p style={{ color: 'var(--tertiary-color)' }}>{formatCurrency(totalObjetivo, 0)}</p>
             </div>
         </section>

@@ -121,7 +121,7 @@ const ResultadoAtivos = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 520,
+                        height: 525,
                     },
                 },
             },
@@ -129,7 +129,7 @@ const ResultadoAtivos = () => {
                 breakpoint: 1150,
                 options: {
                     chart: {
-                        height: 470,
+                        height: 475,
                     },
                     plotOptions: {
                         pie: {
@@ -151,7 +151,7 @@ const ResultadoAtivos = () => {
     };
     return (
         <section className='resultado-ativos donut-chart'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={580} />
+            <Chart options={chartOptions} series={chartData.values} type="donut" height={575} />
         </section>
     )
 }
