@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Chart from "react-apexcharts";
 import './RendimentosPercentual.css';
-import { formatCurrency } from "../utils/formatCurrency";
 
 const RendimentosPercentual = () => {
 
