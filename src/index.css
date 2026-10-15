@@ -147,3 +147,12 @@ strong {
   }
 
 }
+
+.aviso-sessao {
+  padding: 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background-color: #fff1f0;
+  color: #a3211c;
+  line-height: 1.5;
+}

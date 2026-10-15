@@ -19,7 +19,8 @@
     margin-bottom: 5px;
 }
 
-.header-app li a {
+.header-app li a,
+.header-app li button {
     text-decoration: none;
     color: var(--primary-color);
     transition: color 0.3s;
@@ -28,15 +29,26 @@
     padding: 7px;
     text-align: center;
     border-radius: 10px 30px 30px 10px;
+    border: 0;
+    background: transparent;
+    box-sizing: border-box;
 }
 
 .header-app li a:hover,
-.header-app li a.active {
+.header-app li a.active,
+.header-app li button:hover {
     color: #ffffff;
     background-color: var(--primary-color);
 }
 
-.header-app li a svg {
+.header-app li a:focus-visible,
+.header-app li button:focus-visible {
+    outline: 3px solid var(--dark-blue-color);
+    outline-offset: -3px;
+}
+
+.header-app li a svg,
+.header-app li button svg {
     width: 40px;
     height: 40px;
 }
@@ -46,11 +58,13 @@
         width: 65px;
     }
 
-    .header-app li a{
+    .header-app li a,
+    .header-app li button {
         padding: 5px;
     }
 
-    .header-app li a svg {
+    .header-app li a svg,
+    .header-app li button svg {
         width: 35px;
         height: 35px;
     }

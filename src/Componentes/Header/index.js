@@ -5,30 +5,30 @@ import { MdLogout } from "react-icons/md";
 
 import './Header.css';
 
-const Header = () => {
+const Header = ({ onSair }) => {
     return (
         <header className='header-app'>
             <nav>
                 <ul>
                     <li>
-                        <NavLink to="/" className={({ isActive }) => isActive ? "active" : ""}>
+                        <NavLink to="/" aria-label="Balanço mensal" className={({ isActive }) => isActive ? "active" : ""}>
                             <TbCalendarDollar />
                         </NavLink>
                     </li>
                     <li>
-                        <NavLink to="/objetivos">
+                        <NavLink to="/objetivos" aria-label="Objetivos">
                             <TbTargetArrow />
                         </NavLink>
                     </li>
                     <li>
-                        <NavLink to="/resultados">
+                        <NavLink to="/resultados" aria-label="Resultados">
                             <PiChartLineUpBold />
                         </NavLink>
                     </li>
                     <li>
-                        <NavLink to="/sair">
+                        <button type="button" onClick={onSair} aria-label="Sair" title="Sair">
                             <MdLogout />
-                        </NavLink>
+                        </button>
                     </li>
                 </ul>
             </nav>
