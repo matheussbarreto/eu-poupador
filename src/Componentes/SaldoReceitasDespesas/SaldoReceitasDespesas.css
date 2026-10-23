@@ -3,6 +3,16 @@
     width: 70%;
 }
 
+.saldo-receitas-despesas .estado-balanco {
+    min-height: 400px;
+    padding: 12px;
+}
+
+.saldo-receitas-despesas .estado-balanco h2 {
+    color: #24b7d9;
+    font-size: 20px;
+}
+
 .saldo-receitas-despesas .apexcharts-legend :last-child .apexcharts-legend-text {
     font-weight: 700 !important;
 }

@@ -43,7 +43,7 @@ function App() {
           <main className="container-main">
             {erroSaida && <p className="aviso-sessao" role="alert">{erroSaida}</p>}
             <Routes>
-              <Route path="/" element={<BalancoMensal />} />
+              <Route path="/" element={<BalancoMensal usuarioId={sessao.usuario.uid} />} />
               <Route path="/objetivos" element={<Objetivos />} />
               <Route path="/resultados" element={<Resultados />} />
               <Route path="*" element={<Navigate to="/" replace />} />
