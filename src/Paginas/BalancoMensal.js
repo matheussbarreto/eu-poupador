@@ -12,17 +12,21 @@ import DespesasPorUtilidade from "../Componentes/DespesasPorUtilidade";
 import DespesasGastoPrevistoCategoria from "../Componentes/DespesasGastoPrevistoCategoria";
 import DespesasGastoPrevisto from "../Componentes/DespesasGastoPrevisto";
 import DespesasPorTipoGastoPrevisto from "../Componentes/DespesasPorTipoGastoPrevisto";
-import { calcularBalancoMensal, obterPeriodoBalanco, obterMensagemErroBalanco } from "../services/balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
 import { observarTransacoes } from "../services/transacoesService";
+import { observarPrevisoes } from "../services/previsoesService";
 
 const BalancoMensal = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
     const [consulta, setConsulta] = useState({});
     const [tentativa, setTentativa] = useState(0);
+    const [previsoes, setPrevisoes] = useState({});
+    const [tentativaPrevisoes, setTentativaPrevisoes] = useState(0);
     const ano = dataSelecionada.getFullYear();
     const mes = dataSelecionada.getMonth();
     const periodo = `${usuarioId}/${ano}/${mes}`;
     const carregando = consulta.periodo !== periodo || consulta.carregando;
+    const carregandoPrevisoes = previsoes.usuarioId !== usuarioId || previsoes.carregando;
 
     useEffect(() => {
         let ativo = true;
@@ -48,16 +52,52 @@ const BalancoMensal = ({ usuarioId }) => {
         };
     }, [usuarioId, ano, mes, periodo, tentativa]);
 
+    useEffect(() => {
+        let ativo = true;
+        let cancelar;
+        setPrevisoes({ usuarioId, carregando: true });
+        const tratarErro = (erro) => {
+            if (ativo) setPrevisoes({ usuarioId, erro: obterMensagemErroPrevisoes(erro), carregando: false });
+        };
+        try {
+            cancelar = observarPrevisoes(usuarioId, (dados) => {
+                if (ativo) setPrevisoes({ usuarioId, dados, carregando: false });
+            }, tratarErro);
+        } catch (erro) {
+            tratarErro(erro);
+        }
+        return () => {
+            ativo = false;
+            if (cancelar) cancelar();
+        };
+    }, [usuarioId, tentativaPrevisoes]);
+
     const balanco = useMemo(() => {
         if (carregando || consulta.erro || !consulta.transacoes) return {};
 
-        // O erro deste cálculo fica restrito ao gráfico; as transações continuam disponíveis.
+        // Um erro de cálculo não descarta as transações compartilhadas.
         try {
             return { dados: calcularBalancoMensal(consulta.transacoes, new Date(ano, mes, 1)) };
         } catch (erro) {
             return { erro: obterMensagemErroBalanco(erro) };
         }
     }, [consulta.transacoes, consulta.erro, carregando, ano, mes]);
+
+    const saldoPrevisto = useMemo(() => {
+        if (carregando || carregandoPrevisoes || previsoes.erro || !previsoes.dados || !balanco.dados) return {};
+        try {
+            return { dados: calcularSaldoAcumuladoPrevisto(balanco.dados, previsoes.dados, new Date(ano, mes, 1)) };
+        } catch (erro) {
+            return { erro: obterMensagemErroPrevisoes(erro) };
+        }
+    }, [balanco.dados, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
+
+    const erroBalanco = carregando ? "" : consulta.erro || balanco.erro;
+    const erroComparacao = erroBalanco || (!carregandoPrevisoes && previsoes.erro) || saldoPrevisto.erro;
+    const tentarComparacaoNovamente = () => {
+        if (erroBalanco) setTentativa((valor) => valor + 1);
+        if (previsoes.erro || saldoPrevisto.erro) setTentativaPrevisoes((valor) => valor + 1);
+    };
 
     return (
             <div className="container">
@@ -66,10 +106,15 @@ const BalancoMensal = ({ usuarioId }) => {
                 <SaldoReceitasDespesas
                     dados={balanco.dados}
                     carregando={carregando}
-                    erro={carregando ? "" : consulta.erro || balanco.erro}
+                    erro={erroBalanco}
                     onTentarNovamente={() => setTentativa((valor) => valor + 1)}
                 />
-                <SaldoAcumuladoPrevisto />
+                <SaldoAcumuladoPrevisto
+                    dados={saldoPrevisto.dados}
+                    carregando={!erroComparacao && (carregando || carregandoPrevisoes)}
+                    erro={erroComparacao}
+                    onTentarNovamente={tentarComparacaoNovamente}
+                />
             {/* </div>
             <div className="container"> */}
                 <ReceitasRecebidoPrevistoCategoria />

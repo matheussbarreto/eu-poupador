@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | O gráfico **Saldo: Receitas vs. Despesas** usa as transações do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | **Saldo: Receitas vs. Despesas** e **Saldo: Acumulado vs. Previsto** usam transações e previsões do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,10 +100,10 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Essa estrutura permite que os próximos gráficos reaproveitem as transações carregadas
-pela página, com funções de cálculo próprias. Atualmente, apenas o primeiro gráfico
-está ligado a esse fluxo. Gráficos que precisarem de categorias, valores previstos ou
-outras fontes ainda exigirão a integração desses dados.
+Os dois primeiros gráficos compartilham as transações carregadas pela página.
+O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
+com uma função de cálculo própria. Os demais gráficos ainda precisam ser ligados
+aos dados compartilhados ou às fontes adicionais de que necessitarem.
 
 Os lançamentos seguem o modelo usado pelo aplicativo:
 
@@ -124,6 +124,41 @@ o gráfico apresenta uma mensagem de ausência de movimentações. Falhas de con
 ou dados inválidos identificados pelo cálculo geram uma mensagem de erro e a opção
 de tentar novamente. Um erro de cálculo não encerra a consulta em tempo real.
 
+### Saldo: Acumulado vs. Previsto
+
+O segundo gráfico compara o resultado e o planejamento **somente do mês selecionado**:
+
+- **Acumulado:** receitas menos despesas registradas nesse mês, igual ao último saldo
+  exibido no primeiro gráfico. Não inclui saldos de meses anteriores.
+- **Previsto:** soma das receitas previstas menos a soma das despesas previstas do mês.
+- **Diferença:** acumulado menos previsto.
+- **Diferença percentual:** diferença dividida pelo valor absoluto do previsto, vezes
+  100. Se o previsto for zero, aparece `—`, pois não há base para calcular o percentual.
+
+`previsoesService.js` acompanha `users/{uid}/incomes` e `users/{uid}/expenses`, aguardando
+as duas fontes antes de entregar os dados. A página mantém essas consultas durante
+a navegação entre meses e as encerra ao trocar de usuário ou sair da tela.
+
+A função `obterPrevisaoDoMes` respeita a criação do cadastro (`createdAt`) e usa a
+entrada de `expectedHistory` correspondente ao mês selecionado. A leitura aceita
+os dois formatos de histórico:
+
+- **Aplicativo:** valor em `goal` e mês de 0 a 11, como no `getMonth()` do JavaScript.
+  Nesse formato, `2026-9` corresponde a outubro de 2026.
+- **Guia de integração:** valor em `value` e mês de 1 a 12; `2026-10` corresponde a outubro.
+  Quando os dois campos existem, `value` e sua convenção de mês têm prioridade.
+
+Antes da criação ou quando o histórico não contém esse mês, a previsão é zero;
+previsões de outros meses não são reaproveitadas. Quando não há histórico, usa
+`expected`; se esse campo estiver ausente, considera zero.
+Registros marcados com `isDeleted === true` são desconsiderados. Valores e datas
+inválidos identificados no cálculo geram uma mensagem de erro, sem exibir totais parciais.
+
+As somas são feitas em centavos. Os controles das séries preservam sua seleção ao
+atualizar os valores ou mudar o mês. Quando não há valores realizados nem previstos,
+o gráfico exibe zeros e uma mensagem. Uma falha nas previsões mantém o primeiro gráfico
+disponível; a opção de tentar novamente reabre apenas a consulta que precisa ser refeita.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -132,9 +167,11 @@ de tentar novamente. Um erro de cálculo não encerra a consulta em tempo real.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
+- `src/Componentes/SaldoAcumuladoPrevisto/`: comparação mensal, diferença e controles das séries.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
+- `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/index.css`: estilos gerais; os componentes mantêm seus próprios arquivos CSS.
 - `*.test.js`: testes próximos aos arquivos que verificam.
@@ -153,6 +190,7 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 - Login, assinatura, restauração da sessão, proteção das rotas, recuperação e logout.
 - Consulta de transações por usuário e intervalo, atualizações e cancelamento.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
+- Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Troca de mês e usuário, respostas atrasadas, período vazio, erros e nova tentativa.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
@@ -164,6 +202,11 @@ usuário no aplicativo. Confira a troca de mês e um período sem receitas ou de
 Ao alterar um lançamento no aplicativo e sincronizá-lo com o Firestore, o gráfico
 deve refletir a mudança enquanto a consulta estiver ativa e o lançamento estiver
 dentro do período exibido.
+
+No segundo gráfico, confira se o Acumulado corresponde ao saldo do mês no primeiro.
+Compare o Previsto com os orçamentos de receitas e despesas do aplicativo, incluindo
+meses com alterações em `expectedHistory`. Confira atualização em tempo real, diferença
+em reais e percentual, além dos controles para mostrar ou ocultar cada série.
 
 ## Publicação
 
@@ -179,5 +222,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e do primeiro gráfico também
+a assinatura da conta. Faça a verificação de login e dos dois primeiros gráficos também
 no endereço publicado.

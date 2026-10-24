@@ -53,6 +53,87 @@ export function calcularBalancoMensal(transacoes, dataSelecionada) {
     };
 }
 
+function criarErroPrevisao() {
+    const erro = new Error("Há previsões com data ou valor inválido.");
+    erro.code = "app/previsao-invalida";
+    return erro;
+}
+
+export function obterPrevisaoDoMes(item, dataSelecionada) {
+    if (!item || item.isDeleted === true) return 0;
+    const mesSelecionado = dataSelecionada.getFullYear() * 12 + dataSelecionada.getMonth();
+
+    if (item.createdAt) {
+        const criacao = new Date(item.createdAt);
+        if (typeof item.createdAt !== "string" || !Number.isFinite(criacao.getTime())) throw criarErroPrevisao();
+        if (mesSelecionado < criacao.getFullYear() * 12 + criacao.getMonth()) return 0;
+    }
+
+    const historico = item.expectedHistory;
+    if (historico != null && !Array.isArray(historico)) throw criarErroPrevisao();
+    let valor = item.expected === undefined ? 0 : item.expected;
+    if (historico?.length) {
+        let entradaSelecionada;
+        historico.forEach((entrada) => {
+            if (typeof entrada?.date !== "string" || !/^\d{4}-\d{1,2}$/.test(entrada.date)) throw criarErroPrevisao();
+            const [ano, mes] = entrada.date.split("-").map(Number);
+            // O aplicativo usa goal e meses de 0 a 11; o guia usa value e meses de 1 a 12.
+            const usaGoal = entrada.value === undefined && entrada.goal !== undefined;
+            const indiceMes = usaGoal ? mes : mes - 1;
+            if (indiceMes < 0 || indiceMes > 11) throw criarErroPrevisao();
+            const mesEntrada = ano * 12 + indiceMes;
+            if (mesEntrada === mesSelecionado && !entradaSelecionada) {
+                entradaSelecionada = entrada;
+            }
+        });
+        // O histórico só contribui quando há uma previsão para o mês selecionado.
+        if (!entradaSelecionada) return 0;
+        valor = entradaSelecionada.value === undefined ? entradaSelecionada.goal : entradaSelecionada.value;
+    }
+
+    const numero = Number(valor);
+    const centavos = Math.round((numero + Number.EPSILON) * 100);
+    if (!["number", "string"].includes(typeof valor) || String(valor).trim() === "" ||
+        !Number.isFinite(numero) || numero < 0 || !Number.isSafeInteger(centavos)) throw criarErroPrevisao();
+    return centavos / 100;
+}
+
+export function calcularSaldoAcumuladoPrevisto(balanco, previsoes, dataSelecionada) {
+    const somarPrevisoes = (itens) => itens.reduce((total, item) =>
+        total + Math.round(obterPrevisaoDoMes(item, dataSelecionada) * 100), 0);
+    const receitasPrevistas = somarPrevisoes(previsoes.receitas);
+    const despesasPrevistas = somarPrevisoes(previsoes.despesas);
+    // O último ponto do balanço corresponde somente ao mês selecionado.
+    const indice = balanco.saldos.length - 1;
+    const acumulado = Math.round(balanco.saldos[indice] * 100);
+    const previsto = receitasPrevistas - despesasPrevistas;
+    const diferenca = acumulado - previsto;
+    if (![receitasPrevistas, despesasPrevistas, acumulado, previsto, diferenca].every(Number.isSafeInteger)) throw criarErroPrevisao();
+
+    return {
+        categoria: balanco.categorias[indice],
+        acumulado: acumulado / 100,
+        previsto: previsto / 100,
+        diferenca: diferenca / 100,
+        diferencaPercentual: previsto === 0 ? null : diferenca / Math.abs(previsto) * 100,
+        semDados: balanco.receitas[indice] === 0 && balanco.despesas[indice] === 0 &&
+            receitasPrevistas === 0 && despesasPrevistas === 0,
+    };
+}
+
+export function obterMensagemErroPrevisoes(erro) {
+    switch (erro?.code) {
+        case "permission-denied":
+            return "Não foi possível acessar suas previsões. Verifique seu acesso e sua assinatura.";
+        case "unavailable":
+            return obterMensagemErroBalanco(erro);
+        case "app/previsao-invalida":
+            return "Há previsões com data ou valor inválido. Confira os registros no aplicativo.";
+        default:
+            return "Não foi possível carregar as previsões. Tente novamente em instantes.";
+    }
+}
+
 export function obterMensagemErroBalanco(erro) {
     switch (erro?.code) {
         case "permission-denied":

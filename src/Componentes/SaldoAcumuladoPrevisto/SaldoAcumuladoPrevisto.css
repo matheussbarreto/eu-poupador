@@ -3,6 +3,11 @@
     width: 29%;
 }
 
+.saldo-acumulado-previsto .estado-previsoes {
+    min-height: 360px;
+    padding: 12px 0;
+}
+
 table.legend {
     /* margin-left: auto; */
     margin-right: 0;

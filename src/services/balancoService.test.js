@@ -1,4 +1,4 @@
-import { calcularBalancoMensal, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
@@ -97,4 +97,102 @@ test.each(["permission-denied", "unavailable", "app/lancamento-invalido", "outro
     const mensagem = obterMensagemErroBalanco({ code, message: "detalhe interno" });
     expect(mensagem).not.toContain("detalhe interno");
     expect(mensagem.length).toBeGreaterThan(20);
+});
+
+test("seleciona somente o orçamento do mês sem alterar o histórico compartilhado", () => {
+    const item = Object.freeze({ expected: 999, expectedHistory: Object.freeze([
+        Object.freeze({ date: "2026-11", value: 300 }),
+        Object.freeze({ date: "2026-10", value: "100.50" }),
+        Object.freeze({ date: "2026-02", value: 50 }),
+    ]) });
+    expect(obterPrevisaoDoMes(item, referencia)).toBe(100.5);
+    expect(obterPrevisaoDoMes(item, new Date(2026, 0, 1))).toBe(0);
+    expect(obterPrevisaoDoMes(item, new Date(2026, 10, 1))).toBe(300);
+    expect(obterPrevisaoDoMes(item, new Date(2027, 0, 1))).toBe(0);
+});
+
+test("sem registro no mês, não herda previsões anteriores, futuras ou o valor padrão", () => {
+    const item = { expected: 999, expectedHistory: [
+        { date: "2026-09", value: 100 },
+        { date: "2026-11", value: 300 },
+    ] };
+    expect(obterPrevisaoDoMes(item, referencia)).toBe(0);
+    expect(obterPrevisaoDoMes({ ...item, expectedHistory: [
+        ...item.expectedHistory, { date: "2026-10", value: 0 },
+    ] }, referencia)).toBe(0);
+});
+
+test("histórico do aplicativo usa goal e meses de zero a onze, incluindo outubro como nove", () => {
+    const item = Object.freeze({ expected: 999, expectedHistory: Object.freeze(
+        Array.from({ length: 12 }, (_, mes) => Object.freeze({ date: `2026-${mes}`, goal: (mes + 1) * 100 }))
+    ) });
+    for (let mes = 0; mes < 12; mes += 1) {
+        expect(obterPrevisaoDoMes(item, new Date(2026, mes, 1))).toBe((mes + 1) * 100);
+    }
+    expect(obterPrevisaoDoMes(item, new Date(2025, 11, 1))).toBe(0);
+    expect(obterPrevisaoDoMes(item, new Date(2027, 0, 1))).toBe(0);
+});
+
+test("distingue o mês pelo formato do histórico e preserva valores zero", () => {
+    const item = { expectedHistory: [
+        { date: "2026-8", goal: 50 },
+        { date: "2026-10", value: 0, goal: 999 },
+        { date: "2026-10", goal: 200 },
+    ] };
+    expect(obterPrevisaoDoMes(item, new Date(2026, 8, 1))).toBe(50);
+    expect(obterPrevisaoDoMes(item, referencia)).toBe(0);
+    expect(obterPrevisaoDoMes(item, new Date(2026, 10, 1))).toBe(200);
+    expect(obterPrevisaoDoMes({ expected: 999, expectedHistory: [{ date: "2026-9", goal: 0 }] }, referencia)).toBe(0);
+});
+
+test("previsão fixa, criação local, exclusão e histórico com zero respeitam o mês consultado", () => {
+    expect(obterPrevisaoDoMes({ expected: "0.30", expectedHistory: [] }, referencia)).toBe(0.3);
+    expect(obterPrevisaoDoMes({}, referencia)).toBe(0);
+    expect(obterPrevisaoDoMes({ expected: 90, createdAt: new Date(2026, 10, 1).toISOString() }, referencia)).toBe(0);
+    expect(obterPrevisaoDoMes({ expected: 90, createdAt: new Date(2026, 9, 31, 23, 59).toISOString() }, referencia)).toBe(90);
+    expect(obterPrevisaoDoMes({ expected: 90, isDeleted: true }, referencia)).toBe(0);
+    expect(obterPrevisaoDoMes({ expected: 90, expectedHistory: [{ date: "2026-10", value: 0 }] }, referencia)).toBe(0);
+});
+
+test.each([null, true, "", "abc", Infinity, -1])("previsão inválida %s não vira zero silenciosamente", (valor) => {
+    expect(() => obterPrevisaoDoMes({ expected: valor }, referencia)).toThrow("previsões");
+    expect(() => obterPrevisaoDoMes({ expectedHistory: [{ date: "2026-10", value: valor }] }, referencia)).toThrow("previsões");
+    expect(() => obterPrevisaoDoMes({ expectedHistory: [{ date: "2026-9", goal: valor }] }, referencia)).toThrow("previsões");
+});
+
+test.each([
+    { createdAt: "inválido" },
+    { expectedHistory: {} },
+    { expectedHistory: [{ date: "2026-13", value: 10 }] },
+    { expectedHistory: [{ date: "2026-00", value: 10 }] },
+    { expectedHistory: [{ date: "2026-12", goal: 10 }] },
+    { expectedHistory: [{ date: "2026-10" }] },
+])("dados de previsão inválidos informam erro: %p", (item) => {
+    expect(() => obterPrevisaoDoMes(item, referencia)).toThrow("previsões");
+});
+
+test("compara apenas o mês selecionado, somando previsões em centavos", () => {
+    const balanco = calcularBalancoMensal([
+        receita(999, { date: new Date(2026, 8, 15).toISOString() }), receita(0.3), despesa(0.1),
+    ], referencia);
+    const dados = calcularSaldoAcumuladoPrevisto(balanco, {
+        receitas: [{ expected: 0.1 }, { expected: "0.20" }], despesas: [{ expected: 0.2 }],
+    }, referencia);
+    expect(dados).toEqual({ categoria: "Out/2026", acumulado: 0.2, previsto: 0.1, diferenca: 0.1, diferencaPercentual: 100, semDados: false });
+});
+
+test("previsto negativo usa base absoluta na diferença percentual", () => {
+    const balanco = calcularBalancoMensal([despesa(50)], referencia);
+    const dados = calcularSaldoAcumuladoPrevisto(balanco, { receitas: [], despesas: [{ expected: 100 }] }, referencia);
+    expect(dados).toMatchObject({ acumulado: -50, previsto: -100, diferenca: 50, diferencaPercentual: 50 });
+});
+
+test("previsto zero não gera divisão por zero nem confunde saldo zero com ausência de dados", () => {
+    const previsoes = { receitas: [], despesas: [] };
+    const vazio = calcularSaldoAcumuladoPrevisto(calcularBalancoMensal([], referencia), previsoes, referencia);
+    expect(vazio).toMatchObject({ acumulado: 0, previsto: 0, diferenca: 0, diferencaPercentual: null, semDados: true });
+    const comMovimentacoes = calcularSaldoAcumuladoPrevisto(calcularBalancoMensal([receita(100), despesa(100)], referencia), previsoes, referencia);
+    expect(comMovimentacoes.semDados).toBe(false);
+    const comPrevisoes = calcularSaldoAcumuladoPrevisto(calcularBalancoMensal([], referencia), { receitas: [{ expected: 100 }], despesas: [{ expected: 100 }] }, referencia);
+    expect(comPrevisoes.semDados).toBe(false);
 });
