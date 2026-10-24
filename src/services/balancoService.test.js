@@ -1,4 +1,4 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
@@ -195,4 +195,88 @@ test("previsto zero não gera divisão por zero nem confunde saldo zero com aus�
     expect(comMovimentacoes.semDados).toBe(false);
     const comPrevisoes = calcularSaldoAcumuladoPrevisto(calcularBalancoMensal([], referencia), { receitas: [{ expected: 100 }], despesas: [{ expected: 100 }] }, referencia);
     expect(comPrevisoes.semDados).toBe(false);
+});
+
+test("agrupa receitas pelo identificador, preservando fontes com mesmo nome e nomes alterados", () => {
+    const fontes = Object.freeze([
+        Object.freeze({ id: "a", nome: "Trabalho", order: 2, expectedHistory: [{ date: "2026-9", goal: 100 }] }),
+        Object.freeze({ id: "b", nome: "Trabalho", order: 1, expected: 200 }),
+        Object.freeze({ id: "c", nome: "Aluguel", order: 3, expected: 50 }),
+    ]);
+    const transacoes = Object.freeze([
+        receita(30, { outID: "a", out: "Nome antigo" }), receita(20, { outID: "a" }),
+        receita(300, { outID: "b", incomingType: "investment" }), despesa(999),
+    ].map(Object.freeze));
+    const dados = calcularReceitasPorFonte(transacoes, fontes, referencia);
+    expect(dados.itens).toEqual([
+        { id: "id:b", nome: "Trabalho", recebido: 300, previsto: 200, percentual: 150 },
+        { id: "id:a", nome: "Trabalho", recebido: 50, previsto: 100, percentual: 50 },
+        { id: "id:c", nome: "Aluguel", recebido: 0, previsto: 50, percentual: 0 },
+    ]);
+    expect(dados).toMatchObject({ totalRecebido: 350, totalPrevisto: 350, diferenca: 0, semDados: false });
+    expect(dados.totalRecebido).toBe(calcularBalancoMensal(transacoes, referencia).receitas[11]);
+});
+
+test("lançamentos sem cadastro ou identificador e receitas removidas continuam nos totais", () => {
+    const fontes = [
+        { id: "a", nome: "Salário", expected: 100 },
+        { id: "removida", nome: "Antiga", expected: 999, isDeleted: true },
+    ];
+    const transacoes = [
+        receita(10, { outID: "a" }), receita(20, { outID: "desconhecida", out: "Salário" }),
+        receita(30, { out: "Salário" }), receita(40), receita(50, { outID: "removida" }),
+    ];
+    const dados = calcularReceitasPorFonte(transacoes, fontes, referencia);
+    expect(dados.itens).toHaveLength(5);
+    expect(dados.itens).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "id:a", recebido: 10, previsto: 100 }),
+        expect.objectContaining({ nome: "Salário (sem cadastro)", recebido: 20, previsto: 0, percentual: null }),
+        expect.objectContaining({ nome: "Salário (não identificada)", recebido: 30, previsto: 0 }),
+        expect.objectContaining({ nome: "Receita não identificada", recebido: 40 }),
+        expect.objectContaining({ nome: "Antiga (removida)", recebido: 50, previsto: 0 }),
+    ]));
+    expect(dados.totalRecebido).toBe(150);
+    expect(dados.totalRecebido).toBe(calcularBalancoMensal(transacoes, referencia).receitas[11]);
+});
+
+test("receitas por fonte respeitam os limites do mês, exclusões e classificação dos lançamentos", () => {
+    const inicio = new Date(2026, 9, 1);
+    const fim = new Date(2026, 10, 1);
+    const transacoes = [
+        receita(10, { date: inicio.toISOString(), outID: "a" }),
+        receita(20, { date: new Date(fim.getTime() - 1).toISOString(), outID: "a", incomingType: "expense" }),
+        receita(999, { date: new Date(inicio.getTime() - 1).toISOString() }),
+        receita(999, { date: fim.toISOString() }), receita(999, { isDeleted: true }),
+        receita(999, { outgoingType: "create" }), receita(999, { out: "Criação" }),
+        receita(999, { outgoingType: "account" }), receita(999, { outgoingType: "investment" }),
+    ];
+    const dados = calcularReceitasPorFonte(transacoes, [{ id: "a", nome: "Salário", expectedHistory: [
+        { date: "2026-8", goal: 999 }, { date: "2026-9", goal: 40 }, { date: "2026-10", goal: 999 },
+    ] }], referencia);
+    expect(dados.itens).toEqual([{ id: "id:a", nome: "Salário", recebido: 30, previsto: 40, percentual: 75 }]);
+    expect(dados).toMatchObject({ totalRecebido: 30, totalPrevisto: 40, diferenca: -10 });
+});
+
+test("soma receitas e previsões em centavos e não depende de balance do cadastro", () => {
+    const dados = calcularReceitasPorFonte([receita(0.1, { outID: "a" }), receita("0.20", { outID: "a" })], [
+        { id: "a", nome: "Fonte A", expected: 0.1, balance: 999 },
+        { id: "b", nome: "Fonte B", expected: "0.20", balance: 999 },
+    ], referencia);
+    expect(dados).toMatchObject({ totalRecebido: 0.3, totalPrevisto: 0.3, diferenca: 0 });
+    expect(dados.itens.find(item => item.id === "id:a").recebido).toBe(0.3);
+});
+
+test("fontes zeradas ou de outros meses geram estado vazio, sem herdar histórico", () => {
+    const dados = calcularReceitasPorFonte([], [
+        { id: "a", expected: 999, expectedHistory: [{ date: "2026-8", goal: 500 }] },
+        { id: "b", expected: 999, createdAt: new Date(2026, 10, 1).toISOString() },
+        { id: "c", expected: 0 },
+    ], referencia);
+    expect(dados).toEqual({ itens: [], totalRecebido: 0, totalPrevisto: 0, diferenca: 0, semDados: true });
+});
+
+test("dados inválidos de receita impedem totais parciais, enquanto despesas não participam do cálculo", () => {
+    expect(() => calcularReceitasPorFonte([receita("inválido")], [], referencia)).toThrow("lançamentos");
+    expect(() => calcularReceitasPorFonte([], [{ id: "a", expected: "inválido" }], referencia)).toThrow("previsões");
+    expect(calcularReceitasPorFonte([receita(10), despesa("inválido")], [], referencia).totalRecebido).toBe(10);
 });

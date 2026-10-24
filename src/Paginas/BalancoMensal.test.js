@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({
 }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/ReceitasRecebidoPrevistoCategoria", () => () => null);
 jest.mock("../Componentes/ReceitasRecebidoPrevisto", () => () => null);
 jest.mock("../Componentes/DespesasGastoPrevistoCategoria", () => () => null);
 jest.mock("../Componentes/DespesasGastoPrevisto", () => () => null);
@@ -24,14 +23,16 @@ let root;
 let consultas;
 let consultasPrevisoes;
 const transacoes = (valor, mes = 9) => [
-    { id: "receita-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: valor, outgoingType: "income", incomingType: "account" },
+    { id: "receita-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: valor, outgoingType: "income", incomingType: "account", outID: "a", out: "Salário" },
     { id: "despesa-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: 30, outgoingType: "account", incomingType: "expense" },
 ];
 const valoresMensais = (valor) => [...Array(11).fill(0), valor];
 const grafico = () => container.querySelector('[data-testid="grafico"]');
 const comparacao = () => container.querySelector('.saldo-acumulado-previsto');
 const graficoComparacao = () => comparacao().querySelector('[data-testid="grafico"]');
-const previsoes = (valor) => ({ receitas: [{ expected: valor }], despesas: [{ expected: 20 }] });
+const previsoes = (valor) => ({ receitas: [{ id: "a", nome: "Salário", expected: valor }], despesas: [{ expected: 20 }] });
+const fontes = () => container.querySelector('.receitas-recebido-previsto-categoria');
+const graficoFontes = () => fontes().querySelector('[data-testid="grafico"]');
 
 beforeEach(() => {
     jest.resetAllMocks();
@@ -191,25 +192,28 @@ test("os dois gráficos compartilham transações e recebem atualizações indep
 
 test("troca de mês lê o histórico do aplicativo sem herdar previsões ou reabrir a consulta", async () => {
     await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
-    await act(async () => consultasPrevisoes[0].receber({ receitas: [{ expectedHistory: [
+    await act(async () => consultasPrevisoes[0].receber({ receitas: [{ id: "a", nome: "Salário", expectedHistory: [
         { date: "2026-8", goal: 50 }, { date: "2026-9", goal: 100 },
     ] }], despesas: [] }));
     await act(async () => consultas[0].receber(transacoes(100)));
     expect(JSON.parse(graficoComparacao().textContent)).toEqual({
         series: [{ name: "Acumulado", data: [70] }, { name: "Previsto", data: [100] }], categorias: ["Out/2026"],
     });
+    expect(JSON.parse(graficoFontes().textContent).series[0].data[0]).toMatchObject({ x: "Salário", y: 100, goals: [{ value: 100 }] });
     await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
     expect(graficoComparacao()).toBeNull();
     await act(async () => consultas[1].receber(transacoes(50, 8)));
     expect(JSON.parse(graficoComparacao().textContent)).toEqual({
         series: [{ name: "Acumulado", data: [20] }, { name: "Previsto", data: [50] }], categorias: ["Set/2026"],
     });
+    expect(JSON.parse(graficoFontes().textContent).series[0].data[0]).toMatchObject({ y: 50, goals: [{ value: 50 }] });
     await act(async () => jest.advanceTimersByTime(200));
     await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
     await act(async () => consultas[2].receber(transacoes(40, 7)));
     expect(JSON.parse(graficoComparacao().textContent)).toEqual({
         series: [{ name: "Acumulado", data: [10] }, { name: "Previsto", data: [0] }], categorias: ["Ago/2026"],
     });
+    expect(JSON.parse(graficoFontes().textContent).series[0].data[0]).toMatchObject({ y: 40, goals: [{ value: 0 }] });
     expect(consultasPrevisoes).toHaveLength(1);
     expect(consultasPrevisoes[0].cancelar).not.toHaveBeenCalled();
 });
@@ -252,8 +256,10 @@ test("troca de usuário não mistura transações novas com previsões da conta 
     await act(async () => consultas[1].receber(transacoes(200)));
     await act(async () => consultasPrevisoes[0].receber(previsoes(999)));
     expect(graficoComparacao()).toBeNull();
+    expect(graficoFontes()).toBeNull();
     await act(async () => consultasPrevisoes[1].receber({ receitas: [], despesas: [] }));
     expect(JSON.parse(graficoComparacao().textContent).series[1].data).toEqual([0]);
+    expect(JSON.parse(graficoFontes().textContent).series[0].data[0]).toMatchObject({ y: 200, goals: [{ value: 0 }] });
 });
 
 test("nova tentativa pela comparação recupera a consulta compartilhada de transações", async () => {
@@ -264,5 +270,56 @@ test("nova tentativa pela comparação recupera a consulta compartilhada de tran
     await act(async () => consultas[1].receber(transacoes(100)));
     expect(grafico()).not.toBeNull();
     expect(graficoComparacao()).not.toBeNull();
+    expect(consultasPrevisoes).toHaveLength(1);
+});
+
+test("fontes usam os mesmos dados dos outros gráficos e atualizam sem consultas adicionais", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(150)));
+    expect(graficoFontes()).toBeNull();
+    await act(async () => consultasPrevisoes[0].receber(previsoes(200)));
+    expect(JSON.parse(graficoFontes().textContent).series[0].data).toEqual([
+        expect.objectContaining({ x: "Salário", y: 150, goals: [expect.objectContaining({ value: 200 })] }),
+    ]);
+    await act(async () => consultas[0].receber([...transacoes(200), { ...transacoes(50)[0], id: "sem-cadastro", outID: "antiga", out: "Extra" }]));
+    const recebido = JSON.parse(graficoFontes().textContent).series[0].data.reduce((total, item) => total + item.y, 0);
+    expect(recebido).toBe(JSON.parse(grafico().textContent).series[0].data[11]);
+    expect(recebido).toBe(250);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+});
+
+test("erro no cálculo das despesas previstas não bloqueia o gráfico de fontes de receita", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].receber({ ...previsoes(200), despesas: [{ expected: "inválido" }] }));
+    expect(comparacao().querySelector('[role="alert"]')).not.toBeNull();
+    expect(fontes().querySelector('[role="alert"]')).toBeNull();
+    expect(JSON.parse(graficoFontes().textContent).series[0].data[0]).toMatchObject({ y: 100, goals: [{ value: 200 }] });
+});
+
+test("nova tentativa pelas fontes recupera previsões sem repetir a consulta de transações", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].receber(previsoes("inválido")));
+    expect(fontes().querySelector('[role="alert"]')).not.toBeNull();
+    expect(grafico()).not.toBeNull();
+    await act(async () => fontes().querySelector('button').click());
+    await act(async () => consultasPrevisoes[0].receber(previsoes(999)));
+    expect(graficoFontes()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber(previsoes(200)));
+    expect(graficoFontes()).not.toBeNull();
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(2);
+});
+
+test("nova tentativa pelas fontes recupera falha da consulta compartilhada de transações", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultasPrevisoes[0].receber(previsoes(200)));
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(fontes().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => fontes().querySelector('button').click());
+    await act(async () => consultas[1].receber(transacoes(100)));
+    expect(graficoFontes()).not.toBeNull();
     expect(consultasPrevisoes).toHaveLength(1);
 });

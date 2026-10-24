@@ -12,7 +12,7 @@ import DespesasPorUtilidade from "../Componentes/DespesasPorUtilidade";
 import DespesasGastoPrevistoCategoria from "../Componentes/DespesasGastoPrevistoCategoria";
 import DespesasGastoPrevisto from "../Componentes/DespesasGastoPrevisto";
 import DespesasPorTipoGastoPrevisto from "../Componentes/DespesasPorTipoGastoPrevisto";
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
 import { observarTransacoes } from "../services/transacoesService";
 import { observarPrevisoes } from "../services/previsoesService";
 
@@ -92,11 +92,29 @@ const BalancoMensal = ({ usuarioId }) => {
         }
     }, [balanco.dados, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
 
+    const receitasPorFonte = useMemo(() => {
+        if (carregando || carregandoPrevisoes || consulta.erro || previsoes.erro || !consulta.transacoes || !previsoes.dados) return {};
+        try {
+            return { dados: calcularReceitasPorFonte(consulta.transacoes, previsoes.dados.receitas, new Date(ano, mes, 1)) };
+        } catch (erro) {
+            const erroPrevisao = erro.code === "app/previsao-invalida";
+            return {
+                erro: erroPrevisao ? obterMensagemErroPrevisoes(erro) : obterMensagemErroBalanco(erro),
+                origemErro: erroPrevisao ? "previsoes" : "transacoes",
+            };
+        }
+    }, [consulta.transacoes, consulta.erro, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
+
     const erroBalanco = carregando ? "" : consulta.erro || balanco.erro;
     const erroComparacao = erroBalanco || (!carregandoPrevisoes && previsoes.erro) || saldoPrevisto.erro;
+    const erroReceitas = (!carregando && consulta.erro) || (!carregandoPrevisoes && previsoes.erro) || receitasPorFonte.erro;
     const tentarComparacaoNovamente = () => {
         if (erroBalanco) setTentativa((valor) => valor + 1);
         if (previsoes.erro || saldoPrevisto.erro) setTentativaPrevisoes((valor) => valor + 1);
+    };
+    const tentarReceitasNovamente = () => {
+        if (consulta.erro || receitasPorFonte.origemErro === "transacoes") setTentativa((valor) => valor + 1);
+        if (previsoes.erro || receitasPorFonte.origemErro === "previsoes") setTentativaPrevisoes((valor) => valor + 1);
     };
 
     return (
@@ -117,7 +135,12 @@ const BalancoMensal = ({ usuarioId }) => {
                 />
             {/* </div>
             <div className="container"> */}
-                <ReceitasRecebidoPrevistoCategoria />
+                <ReceitasRecebidoPrevistoCategoria
+                    dados={receitasPorFonte.dados}
+                    carregando={!erroReceitas && (carregando || carregandoPrevisoes)}
+                    erro={erroReceitas}
+                    onTentarNovamente={tentarReceitasNovamente}
+                />
                 <ReceitasRecebidoPrevisto />
                 <DespesasGastoPrevistoCategoria />
                 <DespesasGastoPrevisto />

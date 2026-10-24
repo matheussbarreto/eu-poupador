@@ -1,226 +1,86 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Chart from "react-apexcharts";
 import './ReceitasRecebidoPrevistoCategoria.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const ReceitasRecebidoPrevistoCategoria = () => {
-
-    // // Calcula a soma dos valores de Recebido e Previsto antes de definir o estado
-    // let totalRecebido = 0;
-    // let totalPrevisto = 0;
-
-    // const seriesData = [
-    //     {
-    //         x: 'Trabalho 01',
-    //         y: 100,
-    //         // goals: [
-    //         //     {
-    //         //         name: 'Previsto',
-    //         //         value: 1500,
-    //         //         strokeWidth: 3,
-    //         //         // strokeHeight: 10,
-    //         //         // strokeDashArray: 2,
-    //         //         strokeColor: '#8a8a8a'
-    //         //     }
-    //         // ]
-    //     },
-    //     {
-    //         x: 'Trabalho 02',
-    //         y: 4400,
-    //         goals: [
-    //             {
-    //                 name: 'Previsto',
-    //                 value: 5400,
-    //                 strokeWidth: 3,
-    //                 // strokeHeight: 10,
-    //                 strokeColor: '#8a8a8a'
-    //             }
-    //         ]
-    //     },
-    //     {
-    //         x: 'Renda Extra',
-    //         y: 5400,
-    //         goals: [
-    //             {
-    //                 name: 'Previsto',
-    //                 value: 5200,
-    //                 strokeWidth: 3,
-    //                 // strokeHeight: 10,
-    //                 // strokeLineCap: 'round',
-    //                 strokeColor: '#8a8a8a'
-    //             }
-    //         ]
-    //     }
-    // ];
-
-    // // Calcula os totais
-    // seriesData.forEach(item => {
-    //     totalRecebido += item.y;
-    //     if (item.goals && item.goals.length) {
-    //         totalPrevisto += item.goals[0].value;
-    //     }
-    // });
-
-    const [goalChart, setGoalChart] = useState({
-        series: [],
-        options: {
-            chart: {
-                type: 'bar',
-                toolbar: {
-                    show: false, // Ocultar as opções de ferramentas, caso deseje
-                },
-                fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif',
-            },
-            title: {
-                text: 'Receitas: Recebido vs. Previsto',
-                style: {
-                    color: "var(--primary-color)",
-                    fontSize: 20
-                },
-            },
-            plotOptions: {
-                bar: {
-                    horizontal: true,
-                    barHeight: '40%',
-                }
-            },
-            colors: ['var(--primary-color)'],
-            markers: {
-                // colors: ['#8a8a8a'],
-            },
-            dataLabels: {
-                // enabled: true,
-                textAnchor: 'middle',
-                // offsetX: -50,
-                offsetY: 23,
-                background: {
-                    enabled: true,
-                    foreColor: '#585858',
-                },
-                formatter: function (val, opt) {
-                    const goals = opt.w.config.series[opt.seriesIndex].data[opt.dataPointIndex].goals;
-                    if (goals && goals.length) {
-                        const goalExpected = goals[0].value;
-                        const percentage = ((val / goalExpected) * 100).toFixed(0);
-                        return `Recebido:  ${formatCurrency(val)} (${percentage}%)`;
-                    }
-                    return `Recebido: ${formatCurrency(val)}`;
-                },
-            },
-            legend: {
-                show: true,
-                fontSize: 16,
-                offsetY: -20,
-                position: 'top',
-                horizontalAlign: 'right',
-                showForSingleSeries: true,
-                // customLegendItems: [
-                //     `<span>Recebido</span> <span>${formatCurrency(totalRecebido)}</span>`,
-                //     `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`
-                // ],
-                customLegendItems: ['Recebido', 'Previsto'],
-                markers: {
-                    fillColors: ['var(--primary-color)', 'var(--tertiary-color)'],
-                    size: 7,
-                    shape: 'circle',
-                },
-            },
-            xaxis: {
-                labels: {
-                    formatter: function (val, index) {
-                        // return `R$ ${val}`;
-                        return formatCurrency(val, 0);
-                    }
-                },
-            },
-            tooltip: {
-                marker: {
-                    show: false,
-                },
-                followCursor: true,
-                y: {
-                    formatter: function (val) {
-                        return formatCurrency(val);
-                    }
-                }
-            }
+const ReceitasRecebidoPrevistoCategoria = ({ dados, carregando, erro, onTentarNovamente }) => {
+    const itens = dados?.itens || [];
+    const series = [{
+        name: 'Recebido',
+        data: itens.map((item) => ({
+            x: item.nome,
+            y: item.recebido,
+            goals: [{ name: 'Previsto', value: item.previsto, strokeWidth: 5, strokeColor: 'var(--tertiary-color)' }],
+        })),
+    }];
+    const diferenca = dados?.diferenca || 0;
+    const options = {
+        chart: {
+            type: 'bar',
+            toolbar: { show: false },
+            fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif',
         },
-    });
-
-    // Simulação da API (substituir com fetch/axios no futuro)
-    const fetchChartData = async () => {
-        try {
-            // Simulação de resposta da API
-            const response = await new Promise((resolve) =>
-                setTimeout(() => resolve([
-                    { trabalho: 'Trabalho 01', recebido: 1000, previsto: 1500 },
-                    { trabalho: 'Trabalho 02', recebido: 4400, previsto: 5400 },
-                    { trabalho: 'Renda Extra', recebido: 5400, previsto: 5000 }
-                ]), 1000)
-            );
-
-            // Transformando os dados no formato esperado pelo gráfico
-            const formattedData = response.map(item => ({
-                x: item.trabalho,
-                y: item.recebido,
-                goals: [{
-                    name: 'Previsto',
-                    value: item.previsto || 0,
-                    strokeWidth: 5,
-                    strokeColor: 'var(--tertiary-color)'
-                }]
-            }));
-
-            // Calculando a soma total de Recebido + Previsto
-            const totalRecebido = response.reduce((acc, item) => {
-                const valor = parseFloat(item.recebido) || 0; // Converte para número ou assume 0 se for inválido
-                return acc + valor;
-            }, 0);
-            const totalPrevisto = response.reduce((acc, item) => {
-                const valor = parseFloat(item.previsto) || 0; // Converte para número ou assume 0 se for inválido
-                return acc + valor;
-            }, 0);
-            const diferencaGeral = (totalPrevisto - totalRecebido) * -1;
-            const valueColor = diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)';
-
-            // Atualizando o estado do gráfico com os novos dados
-            setGoalChart(prev => ({
-                ...prev,
-                series: [{ name: 'Recebido', data: formattedData }],
-                totalValue: diferencaGeral, // Armazena o total
-                options: {
-                    ...prev.options,
-                    legend: {
-                        ...prev.options.legend,
-                        customLegendItems: [
-                            `<span>Recebido</span> <span>${formatCurrency(totalRecebido)}</span>`,
-                            `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`,
-                            `<span>Diferença</span> <span style="color: ${valueColor};">${(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}</span>`
-                        ]
-                    }
-                }
-            }));
-
-        } catch (error) {
-            console.error("Erro ao buscar os dados da API", error);
-        }
+        title: {
+            text: 'Receitas: Recebido vs. Previsto',
+            style: { color: "var(--primary-color)", fontSize: 20 },
+        },
+        plotOptions: { bar: { horizontal: true, barHeight: '40%' } },
+        colors: ['var(--primary-color)'],
+        dataLabels: {
+            textAnchor: 'middle',
+            offsetY: 23,
+            background: { enabled: true, foreColor: '#585858' },
+            formatter: (valor, { dataPointIndex }) => {
+                const percentual = itens[dataPointIndex]?.percentual;
+                const texto = percentual == null ? '—' : percentual.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%';
+                return `Recebido: ${formatCurrency(valor)} (${texto})`;
+            },
+        },
+        legend: {
+            show: true,
+            fontSize: 16,
+            offsetY: -20,
+            position: 'top',
+            horizontalAlign: 'right',
+            showForSingleSeries: true,
+            customLegendItems: [
+                `<span>Recebido</span> <span>${formatCurrency(dados?.totalRecebido || 0)}</span>`,
+                `<span>Previsto</span> <span>${formatCurrency(dados?.totalPrevisto || 0)}</span>`,
+                `<span>Diferença</span> <span style="color: ${diferenca < 0 ? 'var(--red-color)' : 'var(--primary-color)'};">${(diferenca >= 0 ? '+' : '') + formatCurrency(diferenca)}</span>`,
+            ],
+            markers: { fillColors: ['var(--primary-color)', 'var(--tertiary-color)'], size: 7, shape: 'circle' },
+            onItemClick: { toggleDataSeries: false },
+            onItemHover: { highlightDataSeries: false },
+        },
+        xaxis: { labels: { formatter: (valor) => formatCurrency(valor, 0) } },
+        tooltip: {
+            marker: { show: false },
+            followCursor: true,
+            y: { formatter: (valor) => formatCurrency(valor) },
+        },
+        noData: { text: '' },
     };
 
-    // Chamar API quando o componente for montado
-    useEffect(() => {
-        fetchChartData();
-    }, []);
-
     return (
-        <section className="receitas-recebido-previsto-categoria">
-            <Chart
-                options={goalChart.options}
-                series={goalChart.series}
-                type="bar"
-                height={400}
-            />
+        <section className="receitas-recebido-previsto-categoria" aria-busy={carregando}>
+            {carregando || erro || !dados ? (
+                <div className="estado-receitas">
+                    <h2>Receitas: Recebido vs. Previsto</h2>
+                    {erro ? <>
+                        <p role="alert">{erro}</p>
+                        <button className="button" onClick={onTentarNovamente}>Tentar novamente</button>
+                    </> : <p role="status">Carregando receitas por fonte...</p>}
+                </div>
+            ) : dados.semDados ? (
+                <div className="estado-receitas">
+                    <h2>Receitas: Recebido vs. Previsto</h2>
+                    <p role="status">Não há receitas recebidas ou previstas no mês selecionado.</p>
+                </div>
+            ) : (
+                <Chart options={options} series={series} type="bar" height={Math.max(400, itens.length * 70 + 180)} />
+            )}
         </section>
     );
-}
+};
 
 export default ReceitasRecebidoPrevistoCategoria;

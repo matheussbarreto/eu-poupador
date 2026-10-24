@@ -10,6 +10,30 @@ export function obterPeriodoBalanco(dataSelecionada) {
     };
 }
 
+function criarErroLancamento() {
+    const erro = new Error("Há lançamentos com data ou valor inválido.");
+    erro.code = "app/lancamento-invalido";
+    return erro;
+}
+
+function obterLancamentoDoBalanco(transacao) {
+    if (transacao.isDeleted === true || transacao.outgoingType === "create" || transacao.out === "Criação") return null;
+
+    const receita = transacao.outgoingType === "income";
+    const despesa = transacao.incomingType === "expense";
+    if (!receita && !despesa) return null;
+
+    const data = new Date(transacao.date);
+    const valor = Number(transacao.amount);
+    const centavos = Math.round((valor + Number.EPSILON) * 100);
+    if (typeof transacao.date !== "string" || !Number.isFinite(data.getTime()) ||
+        !["number", "string"].includes(typeof transacao.amount) ||
+        String(transacao.amount).trim() === "" || !Number.isFinite(valor) ||
+        valor < 0 || !Number.isSafeInteger(centavos)) throw criarErroLancamento();
+
+    return { data, centavos, receita, despesa };
+}
+
 export function calcularBalancoMensal(transacoes, dataSelecionada) {
     const { inicio, fim } = obterPeriodoBalanco(dataSelecionada);
     const categorias = Array.from({ length: 12 }, (_, indice) => {
@@ -20,23 +44,9 @@ export function calcularBalancoMensal(transacoes, dataSelecionada) {
     const despesas = Array(12).fill(0);
 
     transacoes.forEach((transacao) => {
-        if (transacao.isDeleted === true || transacao.outgoingType === "create" || transacao.out === "Criação") return;
-
-        const receita = transacao.outgoingType === "income";
-        const despesa = transacao.incomingType === "expense";
-        if (!receita && !despesa) return;
-
-        const data = new Date(transacao.date);
-        const valor = Number(transacao.amount);
-        const centavos = Math.round((valor + Number.EPSILON) * 100);
-        if (typeof transacao.date !== "string" || !Number.isFinite(data.getTime()) ||
-            !["number", "string"].includes(typeof transacao.amount) ||
-            String(transacao.amount).trim() === "" || !Number.isFinite(valor) ||
-            valor < 0 || !Number.isSafeInteger(centavos)) {
-            const erro = new Error("Há lançamentos com data ou valor inválido.");
-            erro.code = "app/lancamento-invalido";
-            throw erro;
-        }
+        const lancamento = obterLancamentoDoBalanco(transacao);
+        if (!lancamento) return;
+        const { data, centavos, receita, despesa } = lancamento;
         if (data < inicio || data >= fim) return;
 
         const indice = (data.getFullYear() - inicio.getFullYear()) * 12 + data.getMonth() - inicio.getMonth();
@@ -118,6 +128,66 @@ export function calcularSaldoAcumuladoPrevisto(balanco, previsoes, dataSeleciona
         diferencaPercentual: previsto === 0 ? null : diferenca / Math.abs(previsto) * 100,
         semDados: balanco.receitas[indice] === 0 && balanco.despesas[indice] === 0 &&
             receitasPrevistas === 0 && despesasPrevistas === 0,
+    };
+}
+
+export function calcularReceitasPorFonte(transacoes, receitas, dataSelecionada) {
+    const inicio = new Date(dataSelecionada.getFullYear(), dataSelecionada.getMonth(), 1);
+    const fim = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 1);
+    const fontes = new Map();
+
+    receitas.forEach((receita) => {
+        const nome = typeof receita.nome === "string" && receita.nome.trim() ? receita.nome.trim() : "Receita sem nome";
+        const id = `id:${receita.id}`;
+        fontes.set(id, {
+            id,
+            nome: receita.isDeleted === true ? `${nome} (removida)` : nome,
+            ordem: Number.isFinite(receita.order) ? receita.order : Infinity,
+            recebido: 0,
+            previsto: Math.round(obterPrevisaoDoMes(receita, dataSelecionada) * 100),
+        });
+    });
+
+    transacoes.forEach((transacao) => {
+        if (transacao.outgoingType !== "income") return;
+        const lancamento = obterLancamentoDoBalanco(transacao);
+        if (!lancamento || lancamento.data < inicio || lancamento.data >= fim) return;
+
+        const origem = typeof transacao.outID === "string" ? transacao.outID.trim() : "";
+        const nome = typeof transacao.out === "string" ? transacao.out.trim() : "";
+        // Sem identificador, mantém um grupo separado dos cadastros com o mesmo nome.
+        const id = origem ? `id:${origem}` : `sem-id:${nome}`;
+        if (!fontes.has(id)) {
+            fontes.set(id, {
+                id,
+                nome: nome ? `${nome} (${origem ? "sem cadastro" : "não identificada"})` : "Receita não identificada",
+                ordem: Infinity,
+                recebido: 0,
+                previsto: 0,
+            });
+        }
+        const fonte = fontes.get(id);
+        fonte.recebido += lancamento.centavos;
+        if (!Number.isSafeInteger(fonte.recebido)) throw criarErroLancamento();
+    });
+
+    const fontesDoMes = [...fontes.values()]
+        .filter((fonte) => fonte.recebido !== 0 || fonte.previsto !== 0)
+        .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR") || a.id.localeCompare(b.id));
+    const totalRecebido = fontesDoMes.reduce((total, fonte) => total + fonte.recebido, 0);
+    const totalPrevisto = fontesDoMes.reduce((total, fonte) => total + fonte.previsto, 0);
+    if (!Number.isSafeInteger(totalRecebido)) throw criarErroLancamento();
+    if (!Number.isSafeInteger(totalPrevisto)) throw criarErroPrevisao();
+
+    return {
+        itens: fontesDoMes.map(({ id, nome, recebido, previsto }) => ({
+            id, nome, recebido: recebido / 100, previsto: previsto / 100,
+            percentual: previsto === 0 ? null : recebido / previsto * 100,
+        })),
+        totalRecebido: totalRecebido / 100,
+        totalPrevisto: totalPrevisto / 100,
+        diferenca: (totalRecebido - totalPrevisto) / 100,
+        semDados: fontesDoMes.length === 0,
     };
 }
 

@@ -3,6 +3,14 @@
     width: 70%;
 }
 
+.receitas-recebido-previsto-categoria .estado-receitas {
+    min-height: 400px;
+}
+
+.receitas-recebido-previsto-categoria .estado-receitas p {
+    margin: 16px 0;
+}
+
 .receitas-recebido-previsto-categoria .apexcharts-legend-text {
     display: flex;
     min-width: 220px;
