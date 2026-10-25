@@ -2,6 +2,14 @@
     width: 70%;
 }
 
+.despesas-gasto-previsto-categoria .estado-despesas {
+    min-height: 600px;
+}
+
+.despesas-gasto-previsto-categoria .estado-despesas p {
+    margin: 16px 0;
+}
+
 .despesas-gasto-previsto-categoria .apexcharts-legend-text {
     display: flex;
     min-width: 220px;

@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({
 }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/DespesasGastoPrevistoCategoria", () => () => null);
 jest.mock("../Componentes/DespesasGastoPrevisto", () => () => null);
 jest.mock("../Componentes/DespesasPorCategoria", () => () => null);
 jest.mock("../Componentes/DespesasPorTipo", () => () => null);
@@ -23,17 +22,91 @@ let consultas;
 let consultasPrevisoes;
 const transacoes = (valor, mes = 9) => [
     { id: "receita-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: valor, outgoingType: "income", incomingType: "account", outID: "a", out: "Salário" },
-    { id: "despesa-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: 30, outgoingType: "account", incomingType: "expense" },
+    { id: "despesa-1", date: new Date(2026, mes, 15, 12).toISOString(), amount: 30, outgoingType: "account", incomingType: "expense", inID: "d", in: "Aluguel" },
 ];
 const valoresMensais = (valor) => [...Array(11).fill(0), valor];
 const grafico = () => container.querySelector('[data-testid="grafico"]');
 const comparacao = () => container.querySelector('.saldo-acumulado-previsto');
 const graficoComparacao = () => comparacao().querySelector('[data-testid="grafico"]');
-const previsoes = (valor) => ({ receitas: [{ id: "a", nome: "Salário", expected: valor }], despesas: [{ expected: 20 }] });
+const previsoes = (valor) => ({ receitas: [{ id: "a", nome: "Salário", expected: valor }], despesas: [{ id: "d", nome: "Aluguel", expected: 20 }] });
 const fontes = () => container.querySelector('.receitas-recebido-previsto-categoria');
 const graficoFontes = () => fontes().querySelector('[data-testid="grafico"]');
 const resumoReceitas = () => container.querySelector('.receitas-recebido-previsto');
 const graficoResumo = () => resumoReceitas().querySelector('[data-testid="grafico"]');
+const despesas = () => container.querySelector('.despesas-gasto-previsto-categoria');
+const graficoDespesas = () => despesas().querySelector('[data-testid="grafico"]');
+
+test("despesas compartilham consultas e atualizações, com total igual ao primeiro gráfico", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    expect(graficoDespesas()).toBeNull();
+    await act(async () => consultasPrevisoes[0].receber(previsoes(100)));
+    expect(JSON.parse(graficoDespesas().textContent).series[0].data[0]).toMatchObject({ x: "Aluguel", y: 30, goals: [{ value: 20 }] });
+    await act(async () => consultas[0].receber([...transacoes(100), { ...transacoes(100)[1], id: "outra", inID: "removida", amount: 50 }]));
+    await act(async () => consultasPrevisoes[0].receber({ ...previsoes(100), despesas: [{ id: "d", nome: "Aluguel", expected: 120 }] }));
+    const itens = JSON.parse(graficoDespesas().textContent).series[0].data;
+    expect(itens.reduce((total, item) => total + item.y, 0)).toBe(80);
+    expect(itens.reduce((total, item) => total + item.y, 0)).toBe(JSON.parse(grafico().textContent).series[1].data[11]);
+    expect(itens.find(item => item.x === "Aluguel").goals[0].value).toBe(120);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+});
+
+test("despesas respeitam o mês e não misturam dados após troca de usuário", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultasPrevisoes[0].receber({ receitas: [], despesas: [{ id: "d", nome: "Aluguel", expectedHistory: [
+        { date: "2026-8", goal: 50 }, { date: "2026-9", goal: 100 },
+    ] }] }));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    expect(JSON.parse(graficoDespesas().textContent).series[0].data[0].goals[0].value).toBe(100);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoDespesas()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoDespesas()).toBeNull();
+    await act(async () => consultas[1].receber(transacoes(100, 8)));
+    expect(JSON.parse(graficoDespesas().textContent).series[0].data[0].goals[0].value).toBe(50);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => consultasPrevisoes[0].receber(previsoes(999)));
+    expect(graficoDespesas()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber({ receitas: [], despesas: [] }));
+    expect(graficoDespesas()).toBeNull();
+    expect(despesas().querySelector('[role="status"]').textContent).toContain("Não há despesas");
+});
+
+test("despesas recuperam previsões e lançamentos repetindo apenas a consulta necessária", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].falhar({ code: "permission-denied" }));
+    expect(despesas().querySelector('[role="alert"]')).not.toBeNull();
+    expect(graficoDespesas()).toBeNull();
+    await act(async () => despesas().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => consultasPrevisoes[1].receber(previsoes(100)));
+    expect(graficoDespesas()).not.toBeNull();
+    await act(async () => consultas[0].receber([transacoes(100)[0], { ...transacoes(100)[1], amount: "inválido" }]));
+    expect(graficoDespesas()).toBeNull();
+    expect(graficoFontes()).not.toBeNull();
+    await act(async () => despesas().querySelector('button').click());
+    expect(consultasPrevisoes).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(100)));
+    expect(graficoDespesas()).not.toBeNull();
+});
+
+test("erro nas receitas não bloqueia despesas e orçamento inválido se recupera na atualização", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes("inválido")));
+    await act(async () => consultasPrevisoes[0].receber(previsoes("inválido")));
+    expect(graficoDespesas()).not.toBeNull();
+    expect(despesas().querySelector('[role="alert"]')).toBeNull();
+    await act(async () => consultasPrevisoes[0].receber({ receitas: [], despesas: [{ id: "d", expected: "inválido" }] }));
+    expect(graficoDespesas()).toBeNull();
+    expect(despesas().querySelector('[role="alert"]').textContent).toContain("Há previsões");
+    await act(async () => consultasPrevisoes[0].receber(previsoes(100)));
+    expect(graficoDespesas()).not.toBeNull();
+    expect(consultasPrevisoes).toHaveLength(1);
+});
 
 test("resumo compartilha totais, atualizações e mês com receitas por fonte", async () => {
     await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));

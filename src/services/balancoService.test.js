@@ -1,9 +1,95 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test("despesas são vinculadas por inID, sem misturar nomes iguais ou categorias amplas", () => {
+    const cadastros = Object.freeze([
+        Object.freeze({ id: "a", nome: "Aluguel", category: "Habitação", order: 2, expected: 100 }),
+        Object.freeze({ id: "b", nome: "Aluguel", category: "Habitação", order: 1, expected: 200 }),
+        Object.freeze({ id: "c", nome: "Condomínio", category: "Habitação", order: 3, expected: 50 }),
+    ]);
+    const transacoes = Object.freeze([
+        despesa(30, { inID: "a", in: "Nome antigo" }), despesa(20, { inID: "a" }),
+        despesa(300, { inID: "b" }), receita(999),
+    ].map(Object.freeze));
+    const dados = calcularDespesasPorCadastro(transacoes, cadastros, referencia);
+    expect(dados.itens).toEqual([
+        { id: "id:b", nome: "Aluguel", gasto: 300, previsto: 200, percentual: 150 },
+        { id: "id:a", nome: "Aluguel", gasto: 50, previsto: 100, percentual: 50 },
+        { id: "id:c", nome: "Condomínio", gasto: 0, previsto: 50, percentual: 0 },
+    ]);
+    expect(dados).toMatchObject({ totalGasto: 350, totalPrevisto: 350, diferenca: 0, semDados: false });
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+});
+
+test("gastos de despesas removidas, ausentes ou sem identificador permanecem nos totais", () => {
+    const cadastros = [{ id: "a", nome: "Aluguel", expected: 100 }, { id: "b", nome: "Antiga", isDeleted: true, expected: 999 }];
+    const transacoes = [
+        despesa(10, { inID: "a" }), despesa(20, { inID: "ausente", in: "Aluguel" }),
+        despesa(30, { in: "Aluguel" }), despesa(40), despesa(50, { inID: "b" }),
+    ];
+    const dados = calcularDespesasPorCadastro(transacoes, cadastros, referencia);
+    expect(dados.itens).toHaveLength(5);
+    expect(dados.itens).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: "id:a", gasto: 10, previsto: 100 }),
+        expect.objectContaining({ nome: "Aluguel (sem cadastro)", gasto: 20, previsto: 0, percentual: null }),
+        expect.objectContaining({ nome: "Aluguel (não identificada)", gasto: 30, previsto: 0 }),
+        expect.objectContaining({ nome: "Despesa não identificada", gasto: 40 }),
+        expect.objectContaining({ nome: "Antiga (removida)", gasto: 50, previsto: 0 }),
+    ]));
+    expect(dados).toMatchObject({ totalGasto: 150, totalPrevisto: 100, diferenca: -50 });
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+});
+
+test("despesas respeitam limites do mês, exclusões e histórico sem herdar outros meses", () => {
+    const inicio = new Date(2026, 9, 1);
+    const fim = new Date(2026, 10, 1);
+    const transacoes = [
+        despesa(10, { date: inicio.toISOString(), inID: "a" }),
+        despesa(20, { date: new Date(fim.getTime() - 1).toISOString(), inID: "a", outgoingType: "income" }),
+        despesa(999, { date: new Date(inicio.getTime() - 1).toISOString() }),
+        despesa(999, { date: fim.toISOString() }), despesa(999, { isDeleted: true }),
+        despesa(999, { outgoingType: "create" }), despesa(999, { out: "Criação" }),
+        despesa(999, { incomingType: "account" }), despesa(999, { incomingType: "investment" }),
+    ];
+    const cadastros = [{ id: "a", nome: "Aluguel", expectedHistory: [
+        { date: "2026-8", goal: 999 }, { date: "2026-9", goal: 50 }, { date: "2026-10", goal: 999 },
+    ] }];
+    const dados = calcularDespesasPorCadastro(transacoes, cadastros, referencia);
+    expect(dados.itens).toEqual([{ id: "id:a", nome: "Aluguel", gasto: 30, previsto: 50, percentual: 60 }]);
+    expect(dados.diferenca).toBe(20);
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+    expect(calcularDespesasPorCadastro([], cadastros, new Date(2026, 7, 1)).semDados).toBe(true);
+});
+
+test("diferença de despesas soma centavos e representa previsto menos gasto", () => {
+    const dados = calcularDespesasPorCadastro([despesa(0.1, { inID: "a" }), despesa("0.20", { inID: "a" })], [
+        { id: "a", expected: 0.2, balance: 999 }, { id: "b", expected: 0.2 },
+    ], referencia);
+    expect(dados).toMatchObject({ totalGasto: 0.3, totalPrevisto: 0.4, diferenca: 0.1 });
+    const semPrevisao = calcularDespesasPorCadastro([despesa(50)], [], referencia);
+    expect(semPrevisao).toMatchObject({ totalGasto: 50, totalPrevisto: 0, diferenca: -50 });
+    expect(semPrevisao.itens[0].percentual).toBeNull();
+});
+
+test("despesas zeradas, futuras ou sem previsão no mês geram estado vazio", () => {
+    const dados = calcularDespesasPorCadastro([], [
+        { id: "a", expected: 999, expectedHistory: [{ date: "2026-8", goal: 500 }] },
+        { id: "b", expected: 999, createdAt: new Date(2026, 10, 1).toISOString() },
+        { id: "c", expected: 0 }, { id: "d", expected: 999, isDeleted: true },
+    ], referencia);
+    expect(dados).toEqual({ itens: [], totalGasto: 0, totalPrevisto: 0, diferenca: 0, semDados: true });
+});
+
+test("despesas inválidas impedem totais parciais sem depender da validade das receitas", () => {
+    expect(() => calcularDespesasPorCadastro([despesa("inválido")], [], referencia)).toThrow("lançamentos");
+    expect(() => calcularDespesasPorCadastro([despesa(10, { date: "inválido" })], [], referencia)).toThrow("lançamentos");
+    expect(() => calcularDespesasPorCadastro([], [{ id: "a", expected: "inválido" }], referencia)).toThrow("previsões");
+    expect(calcularDespesasPorCadastro([despesa(10), receita("inválido")], [], referencia).totalGasto).toBe(10);
+});
 
 test.each([
     [900, 1000, -100, -10], [1200, 1000, 200, 20],

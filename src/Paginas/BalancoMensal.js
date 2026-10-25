@@ -12,7 +12,7 @@ import DespesasPorUtilidade from "../Componentes/DespesasPorUtilidade";
 import DespesasGastoPrevistoCategoria from "../Componentes/DespesasGastoPrevistoCategoria";
 import DespesasGastoPrevisto from "../Componentes/DespesasGastoPrevisto";
 import DespesasPorTipoGastoPrevisto from "../Componentes/DespesasPorTipoGastoPrevisto";
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
 import { observarTransacoes } from "../services/transacoesService";
 import { observarPrevisoes } from "../services/previsoesService";
 
@@ -105,6 +105,19 @@ const BalancoMensal = ({ usuarioId }) => {
         }
     }, [consulta.transacoes, consulta.erro, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
 
+    const despesasPorCadastro = useMemo(() => {
+        if (carregando || carregandoPrevisoes || consulta.erro || previsoes.erro || !consulta.transacoes || !previsoes.dados) return {};
+        try {
+            return { dados: calcularDespesasPorCadastro(consulta.transacoes, previsoes.dados.despesas, new Date(ano, mes, 1)) };
+        } catch (erro) {
+            const erroPrevisao = erro.code === "app/previsao-invalida";
+            return {
+                erro: erroPrevisao ? obterMensagemErroPrevisoes(erro) : obterMensagemErroBalanco(erro),
+                origemErro: erroPrevisao ? "previsoes" : "transacoes",
+            };
+        }
+    }, [consulta.transacoes, consulta.erro, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
+
     const receitasPrevistas = useMemo(() => receitasPorFonte.dados
         ? calcularReceitasRecebidoPrevisto(receitasPorFonte.dados, new Date(ano, mes, 1))
         : undefined, [receitasPorFonte.dados, ano, mes]);
@@ -112,6 +125,7 @@ const BalancoMensal = ({ usuarioId }) => {
     const erroBalanco = carregando ? "" : consulta.erro || balanco.erro;
     const erroComparacao = erroBalanco || (!carregandoPrevisoes && previsoes.erro) || saldoPrevisto.erro;
     const erroReceitas = (!carregando && consulta.erro) || (!carregandoPrevisoes && previsoes.erro) || receitasPorFonte.erro;
+    const erroDespesas = (!carregando && consulta.erro) || (!carregandoPrevisoes && previsoes.erro) || despesasPorCadastro.erro;
     const tentarComparacaoNovamente = () => {
         if (erroBalanco) setTentativa((valor) => valor + 1);
         if (previsoes.erro || saldoPrevisto.erro) setTentativaPrevisoes((valor) => valor + 1);
@@ -119,6 +133,10 @@ const BalancoMensal = ({ usuarioId }) => {
     const tentarReceitasNovamente = () => {
         if (consulta.erro || receitasPorFonte.origemErro === "transacoes") setTentativa((valor) => valor + 1);
         if (previsoes.erro || receitasPorFonte.origemErro === "previsoes") setTentativaPrevisoes((valor) => valor + 1);
+    };
+    const tentarDespesasNovamente = () => {
+        if (consulta.erro || despesasPorCadastro.origemErro === "transacoes") setTentativa((valor) => valor + 1);
+        if (previsoes.erro || despesasPorCadastro.origemErro === "previsoes") setTentativaPrevisoes((valor) => valor + 1);
     };
 
     return (
@@ -151,7 +169,12 @@ const BalancoMensal = ({ usuarioId }) => {
                     erro={erroReceitas}
                     onTentarNovamente={tentarReceitasNovamente}
                 />
-                <DespesasGastoPrevistoCategoria />
+                <DespesasGastoPrevistoCategoria
+                    dados={despesasPorCadastro.dados}
+                    carregando={!erroDespesas && (carregando || carregandoPrevisoes)}
+                    erro={erroDespesas}
+                    onTentarNovamente={tentarDespesasNovamente}
+                />
                 <DespesasGastoPrevisto />
                 <DespesasPorCategoria/>
                 <DespesasPorTipo/>

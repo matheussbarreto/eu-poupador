@@ -191,6 +191,66 @@ export function calcularReceitasPorFonte(transacoes, receitas, dataSelecionada) 
     };
 }
 
+export function calcularDespesasPorCadastro(transacoes, despesas, dataSelecionada) {
+    const inicio = new Date(dataSelecionada.getFullYear(), dataSelecionada.getMonth(), 1);
+    const fim = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 1);
+    const cadastros = new Map();
+
+    despesas.forEach((despesa) => {
+        const nome = typeof despesa.nome === "string" && despesa.nome.trim() ? despesa.nome.trim() : "Despesa sem nome";
+        const id = `id:${despesa.id}`;
+        cadastros.set(id, {
+            id,
+            nome: despesa.isDeleted === true ? `${nome} (removida)` : nome,
+            ordem: Number.isFinite(despesa.order) ? despesa.order : Infinity,
+            gasto: 0,
+            previsto: Math.round(obterPrevisaoDoMes(despesa, dataSelecionada) * 100),
+        });
+    });
+
+    transacoes.forEach((transacao) => {
+        if (transacao.incomingType !== "expense") return;
+        const lancamento = obterLancamentoDoBalanco(transacao);
+        if (!lancamento || lancamento.data < inicio || lancamento.data >= fim) return;
+
+        const destino = typeof transacao.inID === "string" ? transacao.inID.trim() : "";
+        const nome = typeof transacao.in === "string" ? transacao.in.trim() : "";
+        // Gastos sem identificador não são associados a um cadastro apenas pelo nome.
+        const id = destino ? `id:${destino}` : `sem-id:${nome}`;
+        if (!cadastros.has(id)) {
+            cadastros.set(id, {
+                id,
+                nome: nome ? `${nome} (${destino ? "sem cadastro" : "não identificada"})` : "Despesa não identificada",
+                ordem: Infinity,
+                gasto: 0,
+                previsto: 0,
+            });
+        }
+        const cadastro = cadastros.get(id);
+        cadastro.gasto += lancamento.centavos;
+        if (!Number.isSafeInteger(cadastro.gasto)) throw criarErroLancamento();
+    });
+
+    const despesasDoMes = [...cadastros.values()]
+        .filter((despesa) => despesa.gasto !== 0 || despesa.previsto !== 0)
+        .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR") || a.id.localeCompare(b.id));
+    const totalGasto = despesasDoMes.reduce((total, despesa) => total + despesa.gasto, 0);
+    const totalPrevisto = despesasDoMes.reduce((total, despesa) => total + despesa.previsto, 0);
+    if (!Number.isSafeInteger(totalGasto)) throw criarErroLancamento();
+    if (!Number.isSafeInteger(totalPrevisto)) throw criarErroPrevisao();
+
+    return {
+        itens: despesasDoMes.map(({ id, nome, gasto, previsto }) => ({
+            id, nome, gasto: gasto / 100, previsto: previsto / 100,
+            percentual: previsto === 0 ? null : gasto / previsto * 100,
+        })),
+        totalGasto: totalGasto / 100,
+        totalPrevisto: totalPrevisto / 100,
+        diferenca: (totalPrevisto - totalGasto) / 100,
+        semDados: despesasDoMes.length === 0,
+    };
+}
+
 export function calcularReceitasRecebidoPrevisto(receitasPorFonte, dataSelecionada) {
     const { totalRecebido, totalPrevisto, diferenca, semDados } = receitasPorFonte;
     return {

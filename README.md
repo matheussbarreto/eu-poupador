@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | Os quatro primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte** e **Receitas: Recebido vs. Previsto (totais)** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | Os cinco primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)** e **Despesas: Gasto vs. Previsto por despesa** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,11 +100,13 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Os quatro primeiros gráficos compartilham as transações carregadas pela página.
+Os cinco primeiros gráficos compartilham as transações carregadas pela página.
 O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
 com uma função de cálculo própria. O terceiro agrupa os recebimentos por fonte e
 reutiliza as previsões de receitas já carregadas, sem abrir novas consultas.
 O quarto usa os totais do terceiro para comparar os recebimentos e as previsões do mês.
+O quinto relaciona os gastos aos cadastros de despesas e reutiliza os orçamentos já
+carregados, com cálculo próprio e sem consultas adicionais.
 Os demais gráficos ainda precisam ser ligados aos dados compartilhados ou às fontes
 adicionais de que necessitarem.
 
@@ -207,6 +209,38 @@ Os controles da legenda mostram ou ocultam as barras, mantendo os totais e a sel
 ao atualizar os dados ou trocar o mês. O gráfico compartilha carregamento, erros e nova
 tentativa com o gráfico por fonte. Meses vazios exibem valores zerados e uma mensagem.
 
+### Despesas: Gasto vs. Previsto por despesa
+
+O quinto gráfico apresenta uma barra horizontal por despesa cadastrada, como Aluguel
+ou Supermercado, considerando **somente o mês selecionado**. O vínculo usa `inID` da
+transação e o identificador do documento em `expenses`. Despesas com nomes iguais
+permanecem separadas; o campo `category` não agrupa as barras deste gráfico.
+
+`calcularDespesasPorCadastro` calcula os valores em centavos, reutilizando a validação
+dos lançamentos do balanço e `obterPrevisaoDoMes`:
+
+- **Gasto:** lançamentos com `incomingType === "expense"`, respeitando as mesmas
+  exclusões e os limites de mês do primeiro gráfico. O campo `balance` não é usado.
+- **Previsto:** orçamento da despesa no mês, seguindo as regras de histórico,
+  criação e exclusão dos cadastros já descritas.
+- **Percentual:** gasto dividido pelo previsto, vezes 100. Uma despesa prevista
+  ainda sem gastos mostra `0%`; sem previsão, aparece `—`.
+- **Diferença total:** previsto menos gasto. Positiva indica orçamento disponível;
+  negativa indica que os gastos ultrapassaram o previsto, com destaque em vermelho.
+
+Despesas com previsão e sem gastos continuam visíveis. Itens com ambos os valores
+zerados são omitidos. A ordem segue `order`, com nome e identificador como desempate;
+itens sem ordem definida ficam após os demais.
+
+Gastos de despesas removidas ou ausentes do cadastro continuam nos totais, com
+previsão zero e indicação no nome. Lançamentos sem `inID` ficam agrupados pelo nome
+informado como não identificados, separados dos cadastros que tenham o mesmo nome.
+O total gasto deve coincidir com as despesas do mês no primeiro gráfico.
+
+O componente trata carregamento, erro com nova tentativa e mês vazio. Um erro no
+cálculo das receitas não impede a apresentação das despesas válidas. O sexto gráfico,
+com os totais de despesas em barras verticais, ainda usa dados de demonstração.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -218,6 +252,7 @@ tentativa com o gráfico por fonte. Meses vazios exibem valores zerados e uma me
 - `src/Componentes/SaldoAcumuladoPrevisto/`: comparação mensal, diferença e controles das séries.
 - `src/Componentes/ReceitasRecebidoPrevistoCategoria/`: recebimentos e previsões por fonte de receita.
 - `src/Componentes/ReceitasRecebidoPrevisto/`: comparação dos totais mensais de receitas e controles das barras.
+- `src/Componentes/DespesasGastoPrevistoCategoria/`: gastos e orçamentos por despesa cadastrada.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -245,6 +280,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   cadastros removidos, nomes repetidos e consistência com o total mensal.
 - Troca de mês e usuário, respostas atrasadas, período vazio, erros e nova tentativa.
 - Resumo de receitas consistente com as fontes, diferença percentual e visibilidade das barras.
+- Despesas por identificador, orçamento disponível ou excedido, gastos sem previsão,
+  cadastros removidos e consistência com o total mensal de despesas.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -270,6 +307,11 @@ No quarto gráfico, confira os totais com o terceiro, a identificação do mês,
 em reais e percentual e os controles para mostrar ou ocultar as barras. Alterações de
 recebimentos ou previsões devem aparecer nos dois gráficos de receitas.
 
+No quinto gráfico, confira cada despesa com os gastos e orçamentos do mês no aplicativo,
+incluindo despesas sem gastos, sem previsão e removidas. Compare a soma dos gastos com
+as despesas do mês no primeiro gráfico. Confira o percentual de uso e a diferença como
+orçamento disponível ou excedido, além da atualização dos valores e da troca de mês.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -284,5 +326,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos quatro primeiros gráficos também
+a assinatura da conta. Faça a verificação de login e dos cinco primeiros gráficos também
 no endereço publicado.
