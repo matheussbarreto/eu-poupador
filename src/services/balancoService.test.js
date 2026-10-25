@@ -1,9 +1,24 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test.each([
+    [900, 1000, -100, -10], [1200, 1000, 200, 20],
+    [1000, 1000, 0, 0], [0, 1000, -1000, -100],
+    [50, 0, 50, null], [0, 0, 0, null], [0.3, 0.2, 0.1, 50],
+])("resumo de receitas compara recebido %p e previsto %p", (recebido, previsto, diferenca, percentual) => {
+    const fontes = calcularReceitasPorFonte([receita(recebido, { outID: "a" })], [{ id: "a", expected: previsto }], referencia);
+    const dados = calcularReceitasRecebidoPrevisto(Object.freeze(fontes), referencia);
+    expect(dados).toEqual({
+        categoria: "Out/2026", recebido, previsto, diferenca,
+        diferencaPercentual: percentual, semDados: recebido === 0 && previsto === 0,
+    });
+    expect(dados.recebido).toBe(fontes.totalRecebido);
+    expect(dados.previsto).toBe(fontes.totalPrevisto);
+});
 
 test("gera os 12 meses até o selecionado, inclusive os meses sem movimentação", () => {
     const dados = calcularBalancoMensal([], referencia);

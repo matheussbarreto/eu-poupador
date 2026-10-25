@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | Os três primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto** e **Receitas: Recebido vs. Previsto por fonte** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | Os quatro primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte** e **Receitas: Recebido vs. Previsto (totais)** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,10 +100,11 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Os três primeiros gráficos compartilham as transações carregadas pela página.
+Os quatro primeiros gráficos compartilham as transações carregadas pela página.
 O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
 com uma função de cálculo própria. O terceiro agrupa os recebimentos por fonte e
 reutiliza as previsões de receitas já carregadas, sem abrir novas consultas.
+O quarto usa os totais do terceiro para comparar os recebimentos e as previsões do mês.
 Os demais gráficos ainda precisam ser ligados aos dados compartilhados ou às fontes
 adicionais de que necessitarem.
 
@@ -188,7 +189,23 @@ como não identificados, sem associá-los a um cadastro apenas por terem o mesmo
 O componente recebe os resultados por propriedades e trata carregamento, erro com
 nova tentativa e mês vazio. Mudanças nas consultas compartilhadas atualizam os valores;
 um erro no valor previsto de uma despesa não impede o cálculo deste gráfico de receitas.
-O quarto gráfico, com os totais de receitas em barras verticais, ainda usa demonstração.
+
+### Receitas: Recebido vs. Previsto (totais)
+
+O quarto gráfico compara os totais de receitas em duas barras verticais, no mês
+selecionado. `calcularReceitasRecebidoPrevisto` prepara o resumo a partir do resultado
+de `calcularReceitasPorFonte`, sem consultar o Firebase nem somar os lançamentos novamente.
+
+- **Recebido e Previsto:** os mesmos totais exibidos no gráfico por fonte.
+- **Diferença:** recebido menos previsto.
+- **Diferença percentual:** diferença dividida pelo previsto, vezes 100. Quando o
+  previsto é zero, apresenta `—`. Por exemplo, R$ 900 recebidos para R$ 1.000 previstos
+  resultam em −R$ 100 e −10%. Esse percentual indica a diferença em relação à previsão;
+  o percentual de cada barra do terceiro gráfico indica quanto da previsão foi recebido.
+
+Os controles da legenda mostram ou ocultam as barras, mantendo os totais e a seleção
+ao atualizar os dados ou trocar o mês. O gráfico compartilha carregamento, erros e nova
+tentativa com o gráfico por fonte. Meses vazios exibem valores zerados e uma mensagem.
 
 ## Organização
 
@@ -200,6 +217,7 @@ O quarto gráfico, com os totais de receitas em barras verticais, ainda usa demo
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
 - `src/Componentes/SaldoAcumuladoPrevisto/`: comparação mensal, diferença e controles das séries.
 - `src/Componentes/ReceitasRecebidoPrevistoCategoria/`: recebimentos e previsões por fonte de receita.
+- `src/Componentes/ReceitasRecebidoPrevisto/`: comparação dos totais mensais de receitas e controles das barras.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -226,6 +244,7 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
   cadastros removidos, nomes repetidos e consistência com o total mensal.
 - Troca de mês e usuário, respostas atrasadas, período vazio, erros e nova tentativa.
+- Resumo de receitas consistente com as fontes, diferença percentual e visibilidade das barras.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -247,6 +266,10 @@ aplicativo. Confira se o total recebido coincide com as receitas do mês no prim
 gráfico, incluindo lançamentos cuja fonte foi removida. Verifique também as fontes
 previstas que ainda não receberam valores e o percentual quando a previsão é zero.
 
+No quarto gráfico, confira os totais com o terceiro, a identificação do mês, a diferença
+em reais e percentual e os controles para mostrar ou ocultar as barras. Alterações de
+recebimentos ou previsões devem aparecer nos dois gráficos de receitas.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -261,5 +284,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos três primeiros gráficos também
+a assinatura da conta. Faça a verificação de login e dos quatro primeiros gráficos também
 no endereço publicado.

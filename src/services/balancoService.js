@@ -191,6 +191,18 @@ export function calcularReceitasPorFonte(transacoes, receitas, dataSelecionada) 
     };
 }
 
+export function calcularReceitasRecebidoPrevisto(receitasPorFonte, dataSelecionada) {
+    const { totalRecebido, totalPrevisto, diferenca, semDados } = receitasPorFonte;
+    return {
+        categoria: `${nomesMeses[dataSelecionada.getMonth()]}/${dataSelecionada.getFullYear()}`,
+        recebido: totalRecebido,
+        previsto: totalPrevisto,
+        diferenca,
+        diferencaPercentual: totalPrevisto === 0 ? null : diferenca / totalPrevisto * 100,
+        semDados,
+    };
+}
+
 export function obterMensagemErroPrevisoes(erro) {
     switch (erro?.code) {
         case "permission-denied":

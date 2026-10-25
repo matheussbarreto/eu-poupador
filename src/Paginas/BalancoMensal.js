@@ -12,7 +12,7 @@ import DespesasPorUtilidade from "../Componentes/DespesasPorUtilidade";
 import DespesasGastoPrevistoCategoria from "../Componentes/DespesasGastoPrevistoCategoria";
 import DespesasGastoPrevisto from "../Componentes/DespesasGastoPrevisto";
 import DespesasPorTipoGastoPrevisto from "../Componentes/DespesasPorTipoGastoPrevisto";
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
 import { observarTransacoes } from "../services/transacoesService";
 import { observarPrevisoes } from "../services/previsoesService";
 
@@ -105,6 +105,10 @@ const BalancoMensal = ({ usuarioId }) => {
         }
     }, [consulta.transacoes, consulta.erro, previsoes.dados, previsoes.erro, carregando, carregandoPrevisoes, ano, mes]);
 
+    const receitasPrevistas = useMemo(() => receitasPorFonte.dados
+        ? calcularReceitasRecebidoPrevisto(receitasPorFonte.dados, new Date(ano, mes, 1))
+        : undefined, [receitasPorFonte.dados, ano, mes]);
+
     const erroBalanco = carregando ? "" : consulta.erro || balanco.erro;
     const erroComparacao = erroBalanco || (!carregandoPrevisoes && previsoes.erro) || saldoPrevisto.erro;
     const erroReceitas = (!carregando && consulta.erro) || (!carregandoPrevisoes && previsoes.erro) || receitasPorFonte.erro;
@@ -141,7 +145,12 @@ const BalancoMensal = ({ usuarioId }) => {
                     erro={erroReceitas}
                     onTentarNovamente={tentarReceitasNovamente}
                 />
-                <ReceitasRecebidoPrevisto />
+                <ReceitasRecebidoPrevisto
+                    dados={receitasPrevistas}
+                    carregando={!erroReceitas && (carregando || carregandoPrevisoes)}
+                    erro={erroReceitas}
+                    onTentarNovamente={tentarReceitasNovamente}
+                />
                 <DespesasGastoPrevistoCategoria />
                 <DespesasGastoPrevisto />
                 <DespesasPorCategoria/>

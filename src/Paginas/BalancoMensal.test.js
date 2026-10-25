@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({
 }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/ReceitasRecebidoPrevisto", () => () => null);
 jest.mock("../Componentes/DespesasGastoPrevistoCategoria", () => () => null);
 jest.mock("../Componentes/DespesasGastoPrevisto", () => () => null);
 jest.mock("../Componentes/DespesasPorCategoria", () => () => null);
@@ -33,6 +32,61 @@ const graficoComparacao = () => comparacao().querySelector('[data-testid="grafic
 const previsoes = (valor) => ({ receitas: [{ id: "a", nome: "Salário", expected: valor }], despesas: [{ expected: 20 }] });
 const fontes = () => container.querySelector('.receitas-recebido-previsto-categoria');
 const graficoFontes = () => fontes().querySelector('[data-testid="grafico"]');
+const resumoReceitas = () => container.querySelector('.receitas-recebido-previsto');
+const graficoResumo = () => resumoReceitas().querySelector('[data-testid="grafico"]');
+
+test("resumo compartilha totais, atualizações e mês com receitas por fonte", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(900)));
+    expect(graficoResumo()).toBeNull();
+    await act(async () => consultasPrevisoes[0].receber(previsoes(1000)));
+    expect(JSON.parse(graficoResumo().textContent)).toEqual({
+        series: [{ name: "Recebido", data: [900] }, { name: "Previsto", data: [1000] }], categorias: ["Out/2026"],
+    });
+    expect(resumoReceitas().textContent).toContain("-10,00%");
+    await act(async () => consultas[0].receber([...transacoes(1000), { ...transacoes(100)[0], outID: "removida" }]));
+    await act(async () => consultasPrevisoes[0].receber(previsoes(1200)));
+    const itens = JSON.parse(graficoFontes().textContent).series[0].data;
+    expect(JSON.parse(graficoResumo().textContent).series.map(serie => serie.data[0])).toEqual([
+        itens.reduce((total, item) => total + item.y, 0), itens.reduce((total, item) => total + item.goals[0].value, 0),
+    ]);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoResumo()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoResumo()).toBeNull();
+    await act(async () => consultas[1].receber(transacoes(50, 8)));
+    expect(JSON.parse(graficoResumo().textContent).categorias).toEqual(["Set/2026"]);
+    expect(JSON.parse(graficoResumo().textContent).series[0].data).toEqual([50]);
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => consultasPrevisoes[0].receber(previsoes(999)));
+    expect(graficoResumo()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber({ receitas: [], despesas: [] }));
+    expect(resumoReceitas().querySelector('[role="status"]').textContent).toContain("Não há receitas");
+    expect(JSON.parse(graficoResumo().textContent).series.map(serie => serie.data[0])).toEqual([0, 0]);
+});
+
+test("resumo repete apenas a consulta com falha e recupera os dois gráficos de receitas", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(900)));
+    await act(async () => consultasPrevisoes[0].falhar({ code: "permission-denied" }));
+    expect(graficoResumo()).toBeNull();
+    expect(resumoReceitas().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => resumoReceitas().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => consultasPrevisoes[1].receber(previsoes(1000)));
+    expect(graficoResumo()).not.toBeNull();
+    expect(graficoFontes()).not.toBeNull();
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(graficoResumo()).toBeNull();
+    await act(async () => resumoReceitas().querySelector('button').click());
+    expect(consultasPrevisoes).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(1200)));
+    expect(resumoReceitas().textContent).toContain("+20,00%");
+    expect(graficoFontes()).not.toBeNull();
+});
 
 beforeEach(() => {
     jest.resetAllMocks();
