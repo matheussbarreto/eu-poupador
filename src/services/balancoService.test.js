@@ -1,9 +1,24 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test.each([
+    [800, 1000, 200, 20], [1200, 1000, -200, -20],
+    [1000, 1000, 0, 0], [0, 1000, 1000, 100],
+    [50, 0, -50, null], [0, 0, 0, null], [0.3, 0.2, -0.1, -50],
+])("resumo de despesas compara gasto %p e previsto %p", (gasto, previsto, diferenca, percentual) => {
+    const cadastros = calcularDespesasPorCadastro([despesa(gasto, { inID: "a" })], [{ id: "a", expected: previsto }], referencia);
+    const dados = calcularDespesasGastoPrevisto(Object.freeze(cadastros), referencia);
+    expect(dados).toEqual({
+        categoria: "Out/2026", gasto, previsto, diferenca,
+        diferencaPercentual: percentual, semDados: gasto === 0 && previsto === 0,
+    });
+    expect(dados.gasto).toBe(cadastros.totalGasto);
+    expect(dados.previsto).toBe(cadastros.totalPrevisto);
+});
 
 test("despesas são vinculadas por inID, sem misturar nomes iguais ou categorias amplas", () => {
     const cadastros = Object.freeze([

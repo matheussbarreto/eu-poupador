@@ -1,32 +1,33 @@
 .despesas-gasto-previsto {
     width: 29%;
-}
-
-.despesas-gasto-previsto .legenda {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-    margin-top: 12px;
 }
 
-.despesas-gasto-previsto .legenda-serie {
-    display: flex;
-    min-width: 260px;
-    justify-content: space-between;
+.despesas-gasto-previsto .area-grafico-despesas {
+    position: relative;
+    flex: 1;
+    min-height: 300px;
 }
 
-.despesas-gasto-previsto .legenda-serie:last-child {
-    font-weight: bold;
+/* O gráfico preenche a área sem determinar a altura do cartão. */
+.despesas-gasto-previsto .area-grafico-despesas > div {
+    position: absolute;
+    inset: 0;
 }
 
-.despesas-gasto-previsto .legenda-serie span {
-    /* flex: 1; */
-    text-align: left;
+.despesas-gasto-previsto .estado-previsoes {
+    min-height: 360px;
+    padding: 12px 0;
 }
 
-.despesas-gasto-previsto .legenda-serie span:last-child {
-    width: 60%;
+.despesas-gasto-previsto table.legend {
+    align-self: flex-start;
+    margin-top: 10px;
+}
+
+.despesas-gasto-previsto table.legend td {
+    padding: 6px 10px 6px 0;
 }
 
 @media only screen and (max-width: 1300px) {

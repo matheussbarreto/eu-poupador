@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | Os cinco primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)** e **Despesas: Gasto vs. Previsto por despesa** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | Os seis primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)**, **Despesas: Gasto vs. Previsto por despesa** e **Despesas: Gasto vs. Previsto (totais)** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,13 +100,14 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Os cinco primeiros gráficos compartilham as transações carregadas pela página.
+Os seis primeiros gráficos compartilham as transações carregadas pela página.
 O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
 com uma função de cálculo própria. O terceiro agrupa os recebimentos por fonte e
 reutiliza as previsões de receitas já carregadas, sem abrir novas consultas.
 O quarto usa os totais do terceiro para comparar os recebimentos e as previsões do mês.
 O quinto relaciona os gastos aos cadastros de despesas e reutiliza os orçamentos já
 carregados, com cálculo próprio e sem consultas adicionais.
+O sexto compara os totais já calculados pelo quinto, sem repetir as somas.
 Os demais gráficos ainda precisam ser ligados aos dados compartilhados ou às fontes
 adicionais de que necessitarem.
 
@@ -238,8 +239,25 @@ informado como não identificados, separados dos cadastros que tenham o mesmo no
 O total gasto deve coincidir com as despesas do mês no primeiro gráfico.
 
 O componente trata carregamento, erro com nova tentativa e mês vazio. Um erro no
-cálculo das receitas não impede a apresentação das despesas válidas. O sexto gráfico,
-com os totais de despesas em barras verticais, ainda usa dados de demonstração.
+cálculo das receitas não impede a apresentação das despesas válidas.
+
+### Despesas: Gasto vs. Previsto (totais)
+
+O sexto gráfico compara o gasto e o orçamento total do mês selecionado em duas barras
+verticais. `calcularDespesasGastoPrevisto` prepara o resumo a partir do resultado de
+`calcularDespesasPorCadastro`, sem novas consultas ou repetição das somas.
+
+- **Gasto e Previsto:** os mesmos totais do gráfico por despesa.
+- **Diferença:** previsto menos gasto; positiva indica orçamento disponível e negativa
+  indica excesso, destacado em vermelho.
+- **Diferença percentual:** diferença dividida pelo previsto, vezes 100. Com R$ 1.000
+  previstos e R$ 800 gastos, mostra +R$ 200 (+20%). Com R$ 1.200 gastos, mostra −R$ 200
+  (−20%). Quando o previsto é zero, apresenta `—`.
+
+Os controles da legenda mostram ou ocultam as barras, preservando as cores, os totais
+e a seleção ao atualizar os dados ou trocar de mês. O gráfico compartilha carregamento,
+erros e nova tentativa com o quinto gráfico. Meses vazios exibem zeros e uma mensagem.
+Os gráficos seguintes de classificação das despesas ainda usam dados de demonstração.
 
 ## Organização
 
@@ -253,6 +271,7 @@ com os totais de despesas em barras verticais, ainda usa dados de demonstração
 - `src/Componentes/ReceitasRecebidoPrevistoCategoria/`: recebimentos e previsões por fonte de receita.
 - `src/Componentes/ReceitasRecebidoPrevisto/`: comparação dos totais mensais de receitas e controles das barras.
 - `src/Componentes/DespesasGastoPrevistoCategoria/`: gastos e orçamentos por despesa cadastrada.
+- `src/Componentes/DespesasGastoPrevisto/`: comparação dos totais mensais de despesas e controles das barras.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -280,6 +299,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   cadastros removidos, nomes repetidos e consistência com o total mensal.
 - Troca de mês e usuário, respostas atrasadas, período vazio, erros e nova tentativa.
 - Resumo de receitas consistente com as fontes, diferença percentual e visibilidade das barras.
+- Resumo de despesas consistente com os cadastros, diferença percentual de orçamento
+  disponível ou excedido e controles das barras.
 - Despesas por identificador, orçamento disponível ou excedido, gastos sem previsão,
   cadastros removidos e consistência com o total mensal de despesas.
 
@@ -312,6 +333,10 @@ incluindo despesas sem gastos, sem previsão e removidas. Compare a soma dos gas
 as despesas do mês no primeiro gráfico. Confira o percentual de uso e a diferença como
 orçamento disponível ou excedido, além da atualização dos valores e da troca de mês.
 
+No sexto gráfico, confira os totais com o quinto, o mês apresentado e os sinais da
+diferença em reais e percentual. Verifique orçamento zero, mês vazio e os controles
+das barras, que devem manter os totais da legenda mesmo quando uma série estiver oculta.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -326,5 +351,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos cinco primeiros gráficos também
+a assinatura da conta. Faça a verificação de login e dos seis primeiros gráficos também
 no endereço publicado.

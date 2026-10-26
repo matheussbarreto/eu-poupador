@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({
 }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/DespesasGastoPrevisto", () => () => null);
 jest.mock("../Componentes/DespesasPorCategoria", () => () => null);
 jest.mock("../Componentes/DespesasPorTipo", () => () => null);
 jest.mock("../Componentes/DespesasPorUtilidade", () => () => null);
@@ -35,6 +34,69 @@ const resumoReceitas = () => container.querySelector('.receitas-recebido-previst
 const graficoResumo = () => resumoReceitas().querySelector('[data-testid="grafico"]');
 const despesas = () => container.querySelector('.despesas-gasto-previsto-categoria');
 const graficoDespesas = () => despesas().querySelector('[data-testid="grafico"]');
+const resumoDespesas = () => container.querySelector('.despesas-gasto-previsto');
+const graficoResumoDespesas = () => resumoDespesas().querySelector('[data-testid="grafico"]');
+
+test("resumo de despesas compartilha totais, mês e usuário com o gráfico por cadastro", async () => {
+    const orcamentos = (valor) => ({ receitas: [], despesas: [{ id: "d", nome: "Aluguel", expectedHistory: [
+        { date: "2026-8", goal: 900 }, { date: "2026-9", goal: valor },
+    ] }] });
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber([{ ...transacoes(100)[1], amount: 800 }]));
+    expect(graficoResumoDespesas()).toBeNull();
+    await act(async () => consultasPrevisoes[0].receber(orcamentos(1000)));
+    expect(JSON.parse(graficoResumoDespesas().textContent)).toEqual({
+        series: [{ name: "Gasto", data: [800] }, { name: "Previsto", data: [1000] }], categorias: ["Out/2026"],
+    });
+    expect(resumoDespesas().textContent).toContain("+20,00%");
+    await act(async () => consultas[0].receber([
+        { ...transacoes(100)[1], amount: 800 }, { ...transacoes(100)[1], id: "extra", inID: "removida", amount: 400 },
+    ]));
+    expect(resumoDespesas().textContent).toContain("-20,00%");
+    await act(async () => consultasPrevisoes[0].receber(orcamentos(1200)));
+    const itens = JSON.parse(graficoDespesas().textContent).series[0].data;
+    expect(JSON.parse(graficoResumoDespesas().textContent).series.map(serie => serie.data[0])).toEqual([
+        itens.reduce((total, item) => total + item.y, 0), itens.reduce((total, item) => total + item.goals[0].value, 0),
+    ]);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoResumoDespesas()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoResumoDespesas()).toBeNull();
+    await act(async () => consultas[1].receber([{ ...transacoes(100, 8)[1], amount: 500 }]));
+    expect(JSON.parse(graficoResumoDespesas().textContent)).toEqual({
+        series: [{ name: "Gasto", data: [500] }, { name: "Previsto", data: [900] }], categorias: ["Set/2026"],
+    });
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => consultasPrevisoes[0].receber(orcamentos(999)));
+    expect(graficoResumoDespesas()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber({ receitas: [], despesas: [] }));
+    expect(resumoDespesas().querySelector('[role="status"]').textContent).toContain("Não há despesas");
+    expect(JSON.parse(graficoResumoDespesas().textContent).series.map(serie => serie.data[0])).toEqual([0, 0]);
+});
+
+test("resumo de despesas repete somente a consulta com falha e recupera ambos os gráficos", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].receber({ ...previsoes(100), despesas: [{ id: "d", expected: "inválido" }] }));
+    expect(graficoResumoDespesas()).toBeNull();
+    expect(resumoDespesas().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => resumoDespesas().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => consultasPrevisoes[1].receber(previsoes(100)));
+    expect(graficoResumoDespesas()).not.toBeNull();
+    expect(graficoDespesas()).not.toBeNull();
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(graficoResumoDespesas()).toBeNull();
+    await act(async () => resumoDespesas().querySelector('button').click());
+    expect(consultasPrevisoes).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(100)));
+    expect(resumoDespesas().textContent).toContain("-50,00%");
+    expect(graficoDespesas()).not.toBeNull();
+});
 
 test("despesas compartilham consultas e atualizações, com total igual ao primeiro gráfico", async () => {
     await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
