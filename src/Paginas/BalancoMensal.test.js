@@ -8,9 +8,8 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/transacoesService", () => ({
     observarTransacoes: jest.fn(),
 }));
-jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories })}</div>);
+jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories || props.options.labels })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/DespesasPorCategoria", () => () => null);
 jest.mock("../Componentes/DespesasPorTipo", () => () => null);
 jest.mock("../Componentes/DespesasPorUtilidade", () => () => null);
 jest.mock("../Componentes/DespesasPorTipoGastoPrevisto", () => () => null);
@@ -36,6 +35,60 @@ const despesas = () => container.querySelector('.despesas-gasto-previsto-categor
 const graficoDespesas = () => despesas().querySelector('[data-testid="grafico"]');
 const resumoDespesas = () => container.querySelector('.despesas-gasto-previsto');
 const graficoResumoDespesas = () => resumoDespesas().querySelector('[data-testid="grafico"]');
+const categoriasDespesas = () => container.querySelector('.despesas-por-categoria');
+const graficoCategorias = () => categoriasDespesas().querySelector('[data-testid="grafico"]');
+
+test("categorias compartilham gastos e cadastros, atualizam a classificação e isolam mês e usuário", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber([
+        transacoes(100)[1], { ...transacoes(100)[1], inID: "extra", amount: 20 },
+    ]));
+    expect(graficoCategorias()).toBeNull();
+    const cadastros = { receitas: [], despesas: [{ id: "d", category: "Habitação", expected: 500 }] };
+    await act(async () => consultasPrevisoes[0].receber(cadastros));
+    expect(JSON.parse(graficoCategorias().textContent)).toEqual({ series: [30, 20], categorias: ["Habitação", "Outros"] });
+    const total = JSON.parse(graficoCategorias().textContent).series.reduce((soma, valor) => soma + valor, 0);
+    expect(total).toBe(JSON.parse(graficoResumoDespesas().textContent).series[0].data[0]);
+    expect(total).toBe(JSON.parse(graficoDespesas().textContent).series[0].data.reduce((soma, item) => soma + item.y, 0));
+    await act(async () => consultasPrevisoes[0].receber({ receitas: [], despesas: [{ id: "d", category: "Pessoal" }] }));
+    expect(JSON.parse(graficoCategorias().textContent).categorias).toEqual(["Pessoal", "Outros"]);
+    await act(async () => consultas[0].receber([{ ...transacoes(100)[1], amount: 40 }]));
+    expect(JSON.parse(graficoCategorias().textContent).series).toEqual([40]);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoCategorias()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoCategorias()).toBeNull();
+    await act(async () => consultas[1].receber([{ ...transacoes(100, 8)[1], amount: 10 }]));
+    expect(JSON.parse(graficoCategorias().textContent).series).toEqual([10]);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => consultasPrevisoes[0].receber(cadastros));
+    expect(graficoCategorias()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber(cadastros));
+    expect(categoriasDespesas().querySelector('[role="status"]').textContent).toContain("Não há despesas realizadas");
+    expect(graficoCategorias()).toBeNull();
+});
+
+test("nova tentativa por categorias recupera somente a fonte com erro", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].falhar({ code: "permission-denied" }));
+    expect(categoriasDespesas().querySelector('[role="alert"]')).not.toBeNull();
+    expect(graficoCategorias()).toBeNull();
+    await act(async () => categoriasDespesas().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => consultasPrevisoes[1].receber(previsoes(100)));
+    expect(JSON.parse(graficoCategorias().textContent)).toEqual({ series: [30], categorias: ["Outros"] });
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(graficoCategorias()).toBeNull();
+    await act(async () => categoriasDespesas().querySelector('button').click());
+    expect(consultasPrevisoes).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(100)));
+    expect(graficoCategorias()).not.toBeNull();
+});
 
 test("resumo de despesas compartilha totais, mês e usuário com o gráfico por cadastro", async () => {
     const orcamentos = (valor) => ({ receitas: [], despesas: [{ id: "d", nome: "Aluguel", expectedHistory: [

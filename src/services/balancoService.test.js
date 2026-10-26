@@ -1,9 +1,69 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test("categorias agrupam gastos em centavos sem incluir previsões ou alterar os dados compartilhados", () => {
+    const despesas = Object.freeze([
+        { id: "a", category: "Habitação", expected: 100 },
+        { id: "b", category: " Habitação ", expected: 200 },
+        { id: "c", category: "Saúde" }, { id: "d", category: "Educação", expected: 300 },
+    ].map(Object.freeze));
+    const transacoes = [despesa(0.1, { inID: "a" }), despesa(0.2, { inID: "b" }), despesa(0.3, { inID: "c" })];
+    const cadastros = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    cadastros.itens.forEach(Object.freeze);
+    Object.freeze(cadastros.itens);
+    const dados = calcularDespesasPorCategoria(Object.freeze(cadastros), despesas);
+    expect(dados).toEqual({
+        itens: [{ nome: "Habitação", gasto: 0.3, percentual: 50 }, { nome: "Saúde", gasto: 0.3, percentual: 50 }],
+        totalGasto: 0.6, semDados: false,
+    });
+    expect(dados.totalGasto).toBe(calcularDespesasGastoPrevisto(cadastros, referencia).gasto);
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+});
+
+test("categorias preservam gastos removidos e incluem em Outros os gastos sem classificação ou vínculo", () => {
+    const despesas = [
+        { id: "a", nome: "Aluguel", category: "Habitação", isDeleted: true },
+        { id: "b", category: " " }, { id: "c", category: null },
+        { id: "d", category: 123 }, { id: "e", category: "Pets" },
+    ];
+    const transacoes = [
+        despesa(10, { inID: "a" }), despesa(10, { inID: "b" }), despesa(10, { inID: "c" }),
+        despesa(10, { inID: "d" }), despesa(10, { inID: "e" }), despesa(10, { inID: "ausente" }),
+        despesa(10, { in: "Aluguel" }),
+    ];
+    const cadastros = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    const dados = calcularDespesasPorCategoria(cadastros, despesas);
+    expect(dados.itens.map(({ nome, gasto }) => ({ nome, gasto }))).toEqual([
+        { nome: "Habitação", gasto: 10 }, { nome: "Pets", gasto: 10 }, { nome: "Outros", gasto: 50 },
+    ]);
+    expect(dados.totalGasto).toBe(70);
+    expect(dados.itens.reduce((total, item) => total + item.percentual, 0)).toBeCloseTo(100);
+});
+
+test("categorias respeitam o mês e refletem a classificação atual sem mudar o total", () => {
+    const despesas = [{ id: "a", category: "Habitação" }];
+    const transacoes = [
+        despesa(30, { inID: "a" }), despesa(999, { inID: "a", isDeleted: true }),
+        despesa(999, { inID: "a", outgoingType: "create" }),
+        despesa(20, { inID: "a", date: new Date(2026, 8, 15).toISOString() }),
+    ];
+    const setembro = calcularDespesasPorCadastro(transacoes, despesas, new Date(2026, 8, 1));
+    const outubro = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    expect(calcularDespesasPorCategoria(setembro, despesas).totalGasto).toBe(20);
+    expect(calcularDespesasPorCategoria(outubro, despesas).itens).toEqual([{ nome: "Habitação", gasto: 30, percentual: 100 }]);
+    expect(calcularDespesasPorCategoria(outubro, [{ id: "a", category: "Pessoal" }]).itens).toEqual([{ nome: "Pessoal", gasto: 30, percentual: 100 }]);
+});
+
+test("categorias ficam vazias quando só há previsões, sem divisões por zero", () => {
+    const despesas = [{ id: "a", category: "Habitação", expected: 999 }];
+    const cadastros = calcularDespesasPorCadastro([], despesas, referencia);
+    expect(cadastros.semDados).toBe(false);
+    expect(calcularDespesasPorCategoria(cadastros, despesas)).toEqual({ itens: [], totalGasto: 0, semDados: true });
+});
 
 test.each([
     [800, 1000, 200, 20], [1200, 1000, -200, -20],

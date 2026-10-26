@@ -251,6 +251,27 @@ export function calcularDespesasPorCadastro(transacoes, despesas, dataSelecionad
     };
 }
 
+export function calcularDespesasPorCategoria(despesasPorCadastro, despesas) {
+    const categoriasPorId = new Map(despesas.map((despesa) => [
+        `id:${despesa.id}`,
+        typeof despesa.category === "string" && despesa.category.trim() ? despesa.category.trim() : "Outros",
+    ]));
+    const categorias = new Map();
+    despesasPorCadastro.itens.forEach((item) => {
+        if (item.gasto === 0) return;
+        const nome = categoriasPorId.get(item.id) || "Outros";
+        categorias.set(nome, (categorias.get(nome) || 0) + Math.round(item.gasto * 100));
+    });
+    const totalCentavos = Math.round(despesasPorCadastro.totalGasto * 100);
+    const itens = [...categorias.entries()]
+        .sort(([a], [b]) => a === "Outros" ? 1 : b === "Outros" ? -1 : a.localeCompare(b, "pt-BR"))
+        .map(([nome, centavos]) => ({
+            nome, gasto: centavos / 100,
+            percentual: totalCentavos === 0 ? 0 : centavos / totalCentavos * 100,
+        }));
+    return { itens, totalGasto: despesasPorCadastro.totalGasto, semDados: totalCentavos === 0 };
+}
+
 export function calcularReceitasRecebidoPrevisto(receitasPorFonte, dataSelecionada) {
     const { totalRecebido, totalPrevisto, diferenca, semDados } = receitasPorFonte;
     return {

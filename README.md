@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | Os seis primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)**, **Despesas: Gasto vs. Previsto por despesa** e **Despesas: Gasto vs. Previsto (totais)** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | Os sete primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)**, **Despesas: Gasto vs. Previsto por despesa**, **Despesas: Gasto vs. Previsto (totais)** e **Despesas por Categoria** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,7 +100,7 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Os seis primeiros gráficos compartilham as transações carregadas pela página.
+Os sete primeiros gráficos compartilham as transações carregadas pela página.
 O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
 com uma função de cálculo própria. O terceiro agrupa os recebimentos por fonte e
 reutiliza as previsões de receitas já carregadas, sem abrir novas consultas.
@@ -108,6 +108,8 @@ O quarto usa os totais do terceiro para comparar os recebimentos e as previsões
 O quinto relaciona os gastos aos cadastros de despesas e reutiliza os orçamentos já
 carregados, com cálculo próprio e sem consultas adicionais.
 O sexto compara os totais já calculados pelo quinto, sem repetir as somas.
+O sétimo agrupa os gastos do quinto pela categoria atual dos cadastros de despesas,
+também sem novas consultas.
 Os demais gráficos ainda precisam ser ligados aos dados compartilhados ou às fontes
 adicionais de que necessitarem.
 
@@ -257,7 +259,36 @@ verticais. `calcularDespesasGastoPrevisto` prepara o resumo a partir do resultad
 Os controles da legenda mostram ou ocultam as barras, preservando as cores, os totais
 e a seleção ao atualizar os dados ou trocar de mês. O gráfico compartilha carregamento,
 erros e nova tentativa com o quinto gráfico. Meses vazios exibem zeros e uma mensagem.
-Os gráficos seguintes de classificação das despesas ainda usam dados de demonstração.
+
+### Despesas por Categoria
+
+O sétimo gráfico mostra, em uma rosca, a distribuição dos gastos realizados no mês
+selecionado. `calcularDespesasPorCategoria` recebe os gastos por cadastro já calculados
+e os cadastros de despesas compartilhados pela página.
+
+- Associa cada item ao campo `category` pelo identificador do cadastro e soma em centavos.
+- Mantém em **Outros** os gastos sem categoria, com categoria vazia ou inválida, ou sem
+  cadastro correspondente. Não associa lançamentos somente pelo nome.
+- Preserva gastos de cadastros removidos; se o documento ainda possui categoria,
+  utiliza essa classificação.
+- Inclui somente gastos realizados. Uma categoria com previsão e nenhum gasto não
+  recebe fatia. O total coincide com o Gasto do quinto e sexto gráficos.
+- Calcula cada percentual como gasto da categoria dividido pelo total gasto, vezes 100.
+  A legenda apresenta duas casas decimais; por arredondamento, a soma exibida pode
+  diferir ligeiramente de 100%.
+
+A legenda é renderizada em React para acomodar nomes longos e quantidades variáveis
+de categorias. Apresenta cores consistentes, valores e percentuais do total mensal.
+O centro mostra o total e, ao passar o cursor sobre uma fatia, os dados da categoria.
+Meses sem gastos mostram uma mensagem e total zero, mesmo que existam previsões.
+Carregamento, erros e nova tentativa são compartilhados com os gráficos de despesas.
+
+A classificação é a **categoria atual do cadastro**: reclassificar uma despesa também
+muda o agrupamento de seus gastos nos meses anteriores. Não há classificação histórica
+por lançamento neste cálculo. Como reutiliza o resultado do quinto gráfico, uma previsão
+inválida que impeça esse cálculo também impede a apresentação das categorias.
+
+Os gráficos seguintes, por tipo e utilidade, ainda usam dados de demonstração.
 
 ## Organização
 
@@ -272,6 +303,7 @@ Os gráficos seguintes de classificação das despesas ainda usam dados de demon
 - `src/Componentes/ReceitasRecebidoPrevisto/`: comparação dos totais mensais de receitas e controles das barras.
 - `src/Componentes/DespesasGastoPrevistoCategoria/`: gastos e orçamentos por despesa cadastrada.
 - `src/Componentes/DespesasGastoPrevisto/`: comparação dos totais mensais de despesas e controles das barras.
+- `src/Componentes/DespesasPorCategoria/`: gastos mensais agrupados por categoria, rosca e legenda.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -303,6 +335,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   disponível ou excedido e controles das barras.
 - Despesas por identificador, orçamento disponível ou excedido, gastos sem previsão,
   cadastros removidos e consistência com o total mensal de despesas.
+- Categorias com gastos agrupados em centavos, classificação atual, gastos em Outros,
+  cores estáveis e mês sem gastos, mesmo com previsões cadastradas.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -337,6 +371,10 @@ No sexto gráfico, confira os totais com o quinto, o mês apresentado e os sinai
 diferença em reais e percentual. Verifique orçamento zero, mês vazio e os controles
 das barras, que devem manter os totais da legenda mesmo quando uma série estiver oculta.
 
+No sétimo gráfico, compare a soma das categorias com o Gasto do quinto e sexto gráficos.
+Confira a atualização dos gastos e da classificação, categorias sem cadastro, cores
+ao trocar de mês, nomes longos e meses que possuem somente previsões.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -351,5 +389,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos seis primeiros gráficos também
+a assinatura da conta. Faça a verificação de login e dos sete primeiros gráficos também
 no endereço publicado.
