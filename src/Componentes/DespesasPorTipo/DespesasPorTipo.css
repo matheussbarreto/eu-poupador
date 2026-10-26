@@ -1,12 +1,52 @@
-/* .despesas-por-tipo {
-    width: 32.5%;
-} */
-
-/* .despesas-por-tipo .apexcharts-legend-series {
-    width: 80%;
+.despesas-por-tipo .estado-tipos {
+    min-height: 487px;
 }
 
-.despesas-por-tipo .apexcharts-legend-text {
+.despesas-por-tipo .estado-tipos p {
+    margin: 16px 0;
+}
+
+.despesas-por-tipo .legenda-tipos {
+    width: 80%;
+    margin: 10px auto 0;
+    font-size: 13px;
+    line-height: 17px;
+}
+
+.despesas-por-tipo .legenda-tipos li {
     display: flex;
-    width: 100%;
-} */
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.despesas-por-tipo .cor-tipo {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.despesas-por-tipo .nome-tipo {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.despesas-por-tipo .valor-tipo {
+    flex-shrink: 0;
+    padding-left: 12px;
+    text-align: right;
+}
+
+@media only screen and (max-width: 1330px) {
+    .despesas-por-tipo .legenda-tipos {
+        width: 95%;
+    }
+}
+
+@media only screen and (max-width: 1300px) {
+    .despesas-por-tipo .estado-tipos {
+        min-height: 437px;
+    }
+}

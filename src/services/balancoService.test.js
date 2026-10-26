@@ -1,9 +1,76 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, calcularDespesasPorTipo, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test("tipos agrupam em centavos na ordem prevista, mantendo o total dos outros gráficos", () => {
+    const despesas = Object.freeze([
+        { id: "a", type: "Despesa Fixa Essencial", expected: 100 },
+        { id: "b", type: " Despesa Fixa Essencial " },
+        { id: "c", type: "Despesa Variável Essencial" },
+        { id: "d", type: "Despesa Fixa Não Essencial" },
+        { id: "e", type: "Despesa Variável Não Essencial" },
+    ].map(Object.freeze));
+    const transacoes = [
+        despesa(0.1, { inID: "a" }), despesa(0.2, { inID: "b" }),
+        despesa(0.3, { inID: "c" }), despesa(0.3, { inID: "d" }), despesa(0.3, { inID: "e" }),
+    ];
+    const cadastros = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    cadastros.itens.forEach(Object.freeze);
+    Object.freeze(cadastros.itens);
+    const dados = calcularDespesasPorTipo(Object.freeze(cadastros), despesas);
+    expect(dados).toEqual({ itens: [
+        { nome: "Despesa Fixa Essencial", gasto: 0.3, percentual: 25 },
+        { nome: "Despesa Variável Essencial", gasto: 0.3, percentual: 25 },
+        { nome: "Despesa Fixa Não Essencial", gasto: 0.3, percentual: 25 },
+        { nome: "Despesa Variável Não Essencial", gasto: 0.3, percentual: 25 },
+    ], totalGasto: 1.2, semDados: false });
+    expect(dados.totalGasto).toBe(calcularDespesasPorCategoria(cadastros, despesas).totalGasto);
+    expect(dados.totalGasto).toBe(calcularDespesasGastoPrevisto(cadastros, referencia).gasto);
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+});
+
+test("tipos preservam cadastros removidos e classificam vínculos ou tipos ausentes como Não classificado", () => {
+    const despesas = [
+        { id: "a", nome: "Aluguel", type: "Despesa Fixa Essencial", isDeleted: true },
+        { id: "b", type: "" }, { id: "c", type: null }, { id: "d", type: 123 },
+        { id: "e", type: "Essencial" }, { id: "f", type: "Desp. Fixa Essencial" },
+    ];
+    const transacoes = [
+        ...despesas.map(({ id }) => despesa(10, { inID: id })),
+        despesa(10, { inID: "ausente" }), despesa(10, { in: "Aluguel" }),
+    ];
+    const dados = calcularDespesasPorTipo(calcularDespesasPorCadastro(transacoes, despesas, referencia), despesas);
+    expect(dados.itens).toEqual([
+        { nome: "Despesa Fixa Essencial", gasto: 10, percentual: 12.5 },
+        { nome: "Não classificado", gasto: 70, percentual: 87.5 },
+    ]);
+    expect(dados.totalGasto).toBe(80);
+});
+
+test("tipos respeitam o mês, as exclusões e a classificação atual do cadastro", () => {
+    const despesas = [{ id: "a", type: "Despesa Fixa Essencial" }];
+    const transacoes = [
+        despesa(30, { inID: "a" }), despesa(999, { inID: "a", isDeleted: true }),
+        despesa(999, { inID: "a", outgoingType: "create" }), receita(999),
+        despesa(20, { inID: "a", date: new Date(2026, 8, 15).toISOString() }),
+    ];
+    const setembro = calcularDespesasPorCadastro(transacoes, despesas, new Date(2026, 8, 1));
+    const outubro = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    expect(calcularDespesasPorTipo(setembro, despesas).totalGasto).toBe(20);
+    expect(calcularDespesasPorTipo(outubro, despesas).itens).toEqual([{ nome: "Despesa Fixa Essencial", gasto: 30, percentual: 100 }]);
+    expect(calcularDespesasPorTipo(outubro, [{ id: "a", type: "Despesa Variável Não Essencial" }]).itens).toEqual([
+        { nome: "Despesa Variável Não Essencial", gasto: 30, percentual: 100 },
+    ]);
+});
+
+test("tipos sem gastos não geram fatias mesmo com previsão, nem divisão por zero", () => {
+    const despesas = [{ id: "a", type: "Despesa Fixa Essencial", expected: 500 }];
+    const cadastros = calcularDespesasPorCadastro([], despesas, referencia);
+    expect(calcularDespesasPorTipo(cadastros, despesas)).toEqual({ itens: [], totalGasto: 0, semDados: true });
+});
 
 test("categorias agrupam gastos em centavos sem incluir previsões ou alterar os dados compartilhados", () => {
     const despesas = Object.freeze([

@@ -272,6 +272,30 @@ export function calcularDespesasPorCategoria(despesasPorCadastro, despesas) {
     return { itens, totalGasto: despesasPorCadastro.totalGasto, semDados: totalCentavos === 0 };
 }
 
+export function calcularDespesasPorTipo(despesasPorCadastro, despesas) {
+    const tipos = new Map([
+        "Despesa Fixa Essencial", "Despesa Variável Essencial",
+        "Despesa Fixa Não Essencial", "Despesa Variável Não Essencial", "Não classificado",
+    ].map((nome) => [nome, 0]));
+    const tiposPorId = new Map(despesas.map((despesa) => [
+        `id:${despesa.id}`, typeof despesa.type === "string" ? despesa.type.trim() : "",
+    ]));
+    despesasPorCadastro.itens.forEach((item) => {
+        if (item.gasto === 0) return;
+        const tipo = tiposPorId.get(item.id);
+        const nome = tipos.has(tipo) ? tipo : "Não classificado";
+        tipos.set(nome, tipos.get(nome) + Math.round(item.gasto * 100));
+    });
+    const totalCentavos = Math.round(despesasPorCadastro.totalGasto * 100);
+    const itens = [...tipos.entries()]
+        .filter(([, centavos]) => centavos > 0)
+        .map(([nome, centavos]) => ({
+            nome, gasto: centavos / 100,
+            percentual: totalCentavos === 0 ? 0 : centavos / totalCentavos * 100,
+        }));
+    return { itens, totalGasto: despesasPorCadastro.totalGasto, semDados: totalCentavos === 0 };
+}
+
 export function calcularReceitasRecebidoPrevisto(receitasPorFonte, dataSelecionada) {
     const { totalRecebido, totalPrevisto, diferenca, semDados } = receitasPorFonte;
     return {

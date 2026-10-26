@@ -12,7 +12,7 @@ import DespesasPorUtilidade from "../Componentes/DespesasPorUtilidade";
 import DespesasGastoPrevistoCategoria from "../Componentes/DespesasGastoPrevistoCategoria";
 import DespesasGastoPrevisto from "../Componentes/DespesasGastoPrevisto";
 import DespesasPorTipoGastoPrevisto from "../Componentes/DespesasPorTipoGastoPrevisto";
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, calcularDespesasPorTipo, obterPeriodoBalanco, obterMensagemErroBalanco, obterMensagemErroPrevisoes } from "../services/balancoService";
 import { observarTransacoes } from "../services/transacoesService";
 import { observarPrevisoes } from "../services/previsoesService";
 
@@ -130,6 +130,10 @@ const BalancoMensal = ({ usuarioId }) => {
         ? calcularDespesasPorCategoria(despesasPorCadastro.dados, previsoes.dados.despesas)
         : undefined, [despesasPorCadastro.dados, previsoes.dados]);
 
+    const despesasPorTipo = useMemo(() => despesasPorCadastro.dados
+        ? calcularDespesasPorTipo(despesasPorCadastro.dados, previsoes.dados.despesas)
+        : undefined, [despesasPorCadastro.dados, previsoes.dados]);
+
     const erroBalanco = carregando ? "" : consulta.erro || balanco.erro;
     const erroComparacao = erroBalanco || (!carregandoPrevisoes && previsoes.erro) || saldoPrevisto.erro;
     const erroReceitas = (!carregando && consulta.erro) || (!carregandoPrevisoes && previsoes.erro) || receitasPorFonte.erro;
@@ -195,7 +199,12 @@ const BalancoMensal = ({ usuarioId }) => {
                     erro={erroDespesas}
                     onTentarNovamente={tentarDespesasNovamente}
                 />
-                <DespesasPorTipo/>
+                <DespesasPorTipo
+                    dados={despesasPorTipo}
+                    carregando={!erroDespesas && (carregando || carregandoPrevisoes)}
+                    erro={erroDespesas}
+                    onTentarNovamente={tentarDespesasNovamente}
+                />
                 <DespesasPorUtilidade/>
                 <DespesasPorTipoGastoPrevisto />
 
