@@ -68,6 +68,14 @@ export function calcularPlanejamentoMensal(transacoes, investimentos, dataSeleci
     };
 }
 
+export function calcularCompromissoMensal(planejamentoMensal) {
+    const { totalRealizado, totalPrevisto, semDados } = planejamentoMensal;
+    return {
+        totalRealizado, totalPrevisto, semDados,
+        percentual: totalPrevisto === 0 ? null : totalRealizado / totalPrevisto * 100,
+    };
+}
+
 export function obterMensagemErroObjetivos(erro) {
     switch (erro?.code) {
         case "permission-denied":

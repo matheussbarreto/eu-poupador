@@ -16,3 +16,7 @@
     text-align: center;
     color: var(--primary-color);
 }
+
+.aportes-pagamentos-compromisso-mensal .estado-compromisso-mensal {
+    min-height: 200px;
+}

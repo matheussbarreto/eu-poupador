@@ -9,8 +9,7 @@ import TituloDaPagina from "../Componentes/TituloDaPagina";
 import MonthSelector from "../Componentes/MonthSelector";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarTransacoes } from "../services/transacoesService";
-import { calcularPlanejamentoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
-import "./Objetivos.css";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
 
 const Objetivos = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -76,6 +75,10 @@ const Objetivos = ({ usuarioId }) => {
         }
     }, [consulta.transacoes, consulta.erro, cadastros.investimentos, cadastros.erro, carregandoTransacoes, carregandoCadastros, ano, mes]);
 
+    const compromissoMensal = useMemo(() => planejamentoMensal.dados
+        ? calcularCompromissoMensal(planejamentoMensal.dados)
+        : undefined, [planejamentoMensal.dados]);
+
     const erro = (!carregandoTransacoes && consulta.erro) || (!carregandoCadastros && cadastros.erro) || planejamentoMensal.erro;
     const tentarNovamente = () => {
         if (consulta.erro || planejamentoMensal.origemErro === "transacoes") setTentativa((valor) => valor + 1);
@@ -86,7 +89,6 @@ const Objetivos = ({ usuarioId }) => {
         <div className="container">
             <TituloDaPagina titulo="Objetivos" />
             <MonthSelector onDateChange={setDataSelecionada} />
-            <p className="aviso-integracao-objetivos">O mês selecionado se aplica ao primeiro gráfico. Os demais ainda exibem dados de demonstração.</p>
             <AportesPagamentosPlanejamentoMensal
                 key={periodo}
                 dados={planejamentoMensal.dados}
@@ -95,7 +97,12 @@ const Objetivos = ({ usuarioId }) => {
                 onTentarNovamente={tentarNovamente}
             />
             <div className="container-left">
-                <AportesPagamentosCompromissoMensal />
+                <AportesPagamentosCompromissoMensal
+                    dados={compromissoMensal}
+                    carregando={!erro && (carregandoTransacoes || carregandoCadastros)}
+                    erro={erro}
+                    onTentarNovamente={tentarNovamente}
+                />
                 <RealizadoPrevistoPlanejamentoMensal />
             </div>
             <AcumulosAmortizacoesPlanejamentoGlobal />

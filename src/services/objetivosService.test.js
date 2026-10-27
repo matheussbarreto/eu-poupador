@@ -1,8 +1,24 @@
-import { calcularPlanejamentoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
 
 const outubro = new Date(2026, 9, 1);
 const data = new Date(2026, 9, 15, 12).toISOString();
 const aporte = (amount, outros = {}) => ({ date: data, amount, outgoingType: "account", incomingType: "investment", inID: "a", ...outros });
+
+test("compromisso mensal usa a razão dos totais, não a média dos percentuais dos objetivos", () => {
+    const planejamento = calcularPlanejamentoMensal([aporte(100)], [{ id: "a", goal: 100 }, { id: "b", goal: 300 }], outubro);
+    expect(calcularCompromissoMensal(Object.freeze(planejamento))).toEqual({
+        totalRealizado: 100, totalPrevisto: 400, percentual: 25, semDados: false,
+    });
+});
+
+test.each([
+    [0, 100, false, 0], [150, 100, false, 150], [50, 0, false, null], [0, 0, true, null], [0.3, 0.2, false, 150],
+])("compromisso mensal trata realizado %s e previsto %s", (totalRealizado, totalPrevisto, semDados, percentual) => {
+    const resultado = calcularCompromissoMensal({ totalRealizado, totalPrevisto, semDados });
+    expect(resultado).toMatchObject({ totalRealizado, totalPrevisto, semDados });
+    if (percentual === null) expect(resultado.percentual).toBeNull();
+    else expect(resultado.percentual).toBeCloseTo(percentual);
+});
 
 test("o período inclui somente o mês selecionado, com limite final exclusivo e virada do ano", () => {
     expect(obterPeriodoObjetivos(new Date(2026, 11, 15))).toEqual({ inicio: new Date(2026, 11, 1), fim: new Date(2027, 0, 1) });

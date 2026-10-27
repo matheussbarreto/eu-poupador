@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn(
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar.dataLabels.value.formatter() })}</div>);
 jest.mock("../Componentes/AcumulosAmortizacoesCompromissoGlobal", () => () => null);
 jest.mock("../Componentes/AcumulosAmortizacoesPlanejamentoGlobal", () => () => null);
-jest.mock("../Componentes/AportesPagamentosCompromissoMensal", () => () => null);
 jest.mock("../Componentes/AtualDesesjadoPlanejamentoGlobal", () => () => null);
 jest.mock("../Componentes/RealizadoPrevistoPlanejamentoMensal", () => () => null);
 
@@ -22,6 +21,66 @@ const investimentos = [{ id: "a", nome: "Reserva", goalHistory: [{ date: "2026-8
 const transacoes = (amount, mes = 9) => [{ inID: "a", date: new Date(2026, mes, 15, 12).toISOString(), amount, outgoingType: "account", incomingType: "investment" }];
 const painel = () => container.querySelector('.aportes-pagamentos-planejamento-mensal');
 const graficos = () => [...painel().querySelectorAll('[data-testid="grafico"]')].map((elemento) => JSON.parse(elemento.textContent));
+const compromisso = () => container.querySelector('.aportes-pagamentos-compromisso-mensal');
+const graficoCompromisso = () => compromisso().querySelector('[data-testid="grafico"]');
+
+test("compromisso compartilha os totais e atualizações sem depender do filtro ou da paginação", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(150)));
+    expect(graficoCompromisso()).toBeNull();
+    await act(async () => cadastros[0].receber(Array.from({ length: 13 }, (_, indice) => ({ id: indice === 0 ? "a" : String(indice), nome: `Objetivo ${indice}`, goal: 100 }))));
+    expect(JSON.parse(graficoCompromisso().textContent).percentual).toBe("11,5%");
+    const resumo = compromisso().textContent;
+    expect(compromisso().querySelector('[aria-label^="Realizado:"]').textContent).toBe(painel().querySelector('.legenda-serie span:last-child').textContent);
+    await act(async () => painel().querySelector('[aria-label="Próxima página de objetivos"]').click());
+    expect(compromisso().textContent).toBe(resumo);
+    await act(async () => painel().querySelector('input').click());
+    expect(compromisso().textContent).toBe(resumo);
+    await act(async () => cadastros[0].receber(investimentos));
+    expect(JSON.parse(graficoCompromisso().textContent)).toEqual({ series: [100], percentual: "150%" });
+    await act(async () => consultas[0].receber(transacoes(50)));
+    expect(JSON.parse(graficoCompromisso().textContent).percentual).toBe("50%");
+    expect(consultas).toHaveLength(1);
+    expect(cadastros).toHaveLength(1);
+});
+
+test("compromisso acompanha mês e usuário, ignorando dados e callbacks antigos", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => cadastros[0].receber(investimentos));
+    expect(JSON.parse(graficoCompromisso().textContent).percentual).toBe("100%");
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoCompromisso()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoCompromisso()).toBeNull();
+    await act(async () => consultas[1].receber(transacoes(100, 8)));
+    expect(JSON.parse(graficoCompromisso().textContent).percentual).toBe("50%");
+    expect(cadastros).toHaveLength(1);
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => cadastros[0].receber(investimentos));
+    expect(graficoCompromisso()).toBeNull();
+    await act(async () => cadastros[1].receber([]));
+    expect(graficoCompromisso()).toBeNull();
+    expect(compromisso().textContent).toContain("Não há aportes, pagamentos ou previsões");
+});
+
+test("nova tentativa pelo compromisso recupera apenas a fonte com erro", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(50)));
+    await act(async () => cadastros[0].receber([{ id: "a", goal: -1 }]));
+    expect(compromisso().querySelector('[role="alert"]').textContent).toContain("previsões");
+    await act(async () => compromisso().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => cadastros[1].receber(investimentos));
+    expect(graficoCompromisso()).not.toBeNull();
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(graficoCompromisso()).toBeNull();
+    await act(async () => compromisso().querySelector('button').click());
+    expect(cadastros).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(200)));
+    expect(JSON.parse(graficoCompromisso().textContent).percentual).toBe("200%");
+});
 
 beforeEach(() => {
     jest.resetAllMocks();
