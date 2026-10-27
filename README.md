@@ -10,7 +10,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
-| Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
+| Objetivos | `/objetivos` | O primeiro gráfico, **Planejamento Mensal: Aportes e Pagamentos**, usa os cadastros e transações do usuário no Firestore. Os outros cinco gráficos ainda usam dados de demonstração. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
@@ -370,11 +370,66 @@ A classificação é a atual, inclusive ao consultar meses anteriores; não há 
 A página calcula o agrupamento com `useMemo` e compartilha carregamento, erros e nova
 tentativa com os demais gráficos de despesas. Não há consultas adicionais ao Firebase.
 
+## Objetivos
+
+A página recebe o identificador da sessão e compartilha duas consultas:
+
+- `investimentosService.js` observa `users/{uid}/investments`, incluindo investimentos,
+  reservas, bens e dívidas. Preserva os campos e usa o ID do documento como identificador.
+- `transacoesService.js` observa as transações **somente do mês selecionado**, com início
+  inclusivo e fim exclusivo, seguindo o calendário local do navegador.
+
+Os cadastros permanecem carregados ao trocar de mês; somente a consulta de transações
+é refeita. As duas consultas são encerradas ao sair da página ou trocar de usuário,
+e respostas antigas são ignoradas. Falhas permitem repetir apenas a fonte afetada.
+
+`objetivosService.js` calcula o planejamento mensal sem consultar o Firebase. A página
+reutiliza esse resultado com `useMemo` e entrega os dados ao primeiro componente por
+props. A base contém os valores por objetivo e os totais, para integrar os próximos
+gráficos mensais sem novas consultas ou repetição da soma das transações.
+
+### Planejamento Mensal: Aportes e Pagamentos
+
+As regras seguem o modelo real conferido e a definição confirmada para esta página:
+
+- **Realizado:** soma dos lançamentos não excluídos do mês com `outgoingType === "account"`
+  e `incomingType === "investment"`, vinculados por `inID`. A mesma regra inclui pagamentos
+  de objetivos classificados como Dívida. Resgates não são descontados. Rendimentos,
+  ajustes, saldos iniciais e transferências entre objetivos não contam como aportes.
+- **Previsto:** `goalHistory` do mês selecionado, ou `goal` quando não existe histórico.
+  No aplicativo, esses campos representam a previsão mensal; `montante` representa a
+  meta global. O gráfico não usa `current`, `aporte` ou `montante` como realizado mensal.
+- **Histórico:** reutiliza `obterPrevisaoDoMes` com os campos de objetivos. Entradas
+  `{ date: "2026-9", goal: 100 }` correspondem a outubro; o formato do guia com `value`
+  usa meses de 1 a 12. Histórico sem entrada para o mês resulta em zero, sem herdar
+  valores de outro mês. A previsão não se aplica antes do mês de criação do cadastro.
+- **Diferença:** total realizado menos total previsto. Valor negativo indica que falta
+  realizar parte do planejamento mensal.
+- **Percentual:** realizado dividido pelo previsto, vezes 100. Previsão zero exibe `—`.
+  Percentuais acima de 100% são preservados no texto; apenas o preenchimento circular
+  fica limitado a 100%.
+
+As somas são feitas em centavos. Objetivos aparecem quando possuem realizado ou previsto
+no mês, inclusive previsões ainda sem aportes. Cadastros excluídos não geram previsão,
+mas seus lançamentos válidos continuam no realizado. Movimentações sem cadastro são
+mantidas separadamente, com previsão zero; nomes iguais não substituem o vínculo por ID.
+
+São apresentados até 12 objetivos por página, ordenados pelo campo `order`, nome e ID.
+O filtro oculta itens sem previsão ou com a meta mensal atingida. Um item com previsão
+positiva e realizado zero continua visível. Paginação e filtro não alteram os totais.
+Ao trocar de mês ou conta, os controles são reiniciados; quando a lista diminui, a página
+atual é ajustada para continuar válida.
+
+O componente trata carregamento, falha com nova tentativa, mês vazio e filtro sem
+resultados. Nesta etapa, somente o primeiro gráfico acompanha o seletor de mês; os
+outros cinco permanecem demonstrativos e a página informa essa distinção.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
 - `src/Paginas/Login.js`: página e apresentação inicial.
 - `src/Paginas/BalancoMensal.js`: seleção de período, carregamento compartilhado e cálculo dos dados apresentados.
+- `src/Paginas/Objetivos.js`: consultas compartilhadas de objetivos e transações do mês, com o primeiro gráfico integrado.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -387,11 +442,14 @@ tentativa com os demais gráficos de despesas. Não há consultas adicionais ao 
 - `src/Componentes/DespesasPorTipo/`: gastos mensais pelos quatro tipos e pelo grupo Não classificado.
 - `src/Componentes/DespesasPorUtilidade/`: gastos essenciais, não essenciais e não classificados a partir dos totais por tipo.
 - `src/Componentes/DespesasPorTipoGastoPrevisto/`: comparação dos gastos e previsões mensais por tipo de despesa.
+- `src/Componentes/AportesPagamentosPlanejamentoMensal/`: realizado e previsto mensal por objetivo, filtro e paginação.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
+- `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
+- `src/services/objetivosService.js`: período mensal, cálculo dos aportes/pagamentos e mensagens de erro.
 - `src/index.css`: estilos gerais; os componentes mantêm seus próprios arquivos CSS.
 - `*.test.js`: testes próximos aos arquivos que verificam.
 - `AGENTS.md`: orientações de organização, escrita e validação para assistentes de código.
@@ -426,6 +484,10 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   percentuais, cores estáveis e estados com um único grupo ou sem gastos.
 - Comparação por tipo com totais consistentes, orçamento excedido, previsão zero,
   grupos somente previstos, histórico mensal, reclassificação e atualização compartilhada.
+- Objetivos com aportes e pagamentos mensais, exclusão de resgates/rendimentos/saldos
+  iniciais, previsões por mês, centavos, IDs, cadastros removidos e percentuais acima de 100%.
+- Paginação e filtro de objetivos sem alterar totais, isolamento entre contas e meses,
+  cancelamento das consultas e recuperação da fonte que falhou.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -478,6 +540,12 @@ de cada tipo com o oitavo. Confira as metas do mês selecionado, inclusive tipos
 somente previsão, gastos sem classificação e percentuais quando o orçamento é zero
 ou foi excedido. Troque de mês e reclassifique uma despesa para conferir a atualização.
 
+Na página Objetivos, compare o primeiro gráfico com os aportes e pagamentos realizados
+no mês no aplicativo e com a previsão mensal de cada objetivo. Confirme que saldos
+iniciais e resgates não alteram o realizado, inclusive em dívidas. Teste o mês anterior,
+atualização de previsão, mais de 12 objetivos, filtro, meta zero e meta superada.
+Os cinco gráficos demonstrativos ainda não devem ser usados para conferir esses totais.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -492,5 +560,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos dez gráficos do Balanço Mensal também
-no endereço publicado.
+a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal
+e do primeiro gráfico de Objetivos também no endereço publicado.

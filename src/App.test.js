@@ -17,7 +17,7 @@ jest.mock("./services/authService", () => ({
     obterMensagemErro: () => "Não foi possível confirmar seu acesso.",
 }));
 jest.mock("./Paginas/BalancoMensal", () => () => <p>Painel mensal autorizado</p>);
-jest.mock("./Paginas/Objetivos", () => () => <p>Objetivos autorizados</p>);
+jest.mock("./Paginas/Objetivos", () => ({ usuarioId }) => <p>Objetivos autorizados: {usuarioId}</p>);
 jest.mock("./Paginas/Resultados", () => () => <p>Resultados autorizados</p>);
 
 const App = require("./App").default;
@@ -73,6 +73,16 @@ test("falha de validação mostra o erro sem renderizar o painel", async () => {
     await act(async () => atualizarSessao({ usuario: null, carregando: false, erro: "Assinatura inativa." }));
     expect(container.querySelector('[role="alert"]').textContent).toBe("Assinatura inativa.");
     expect(container.textContent).not.toContain("Painel mensal autorizado");
+});
+
+test("objetivos recebe o identificador da sessão e acompanha a troca de usuário", async () => {
+    window.history.replaceState({}, "", "/objetivos");
+    await act(async () => root.render(<App />));
+    await act(async () => atualizarSessao({ usuario: { uid: "usuario-a" }, carregando: false, erro: "" }));
+    expect(container.textContent).toContain("Objetivos autorizados: usuario-a");
+    await act(async () => atualizarSessao({ usuario: { uid: "usuario-b" }, carregando: false, erro: "" }));
+    expect(container.textContent).toContain("Objetivos autorizados: usuario-b");
+    expect(container.textContent).not.toContain("usuario-a");
 });
 
 test("falha no logout informa o problema e permite tentar novamente", async () => {
