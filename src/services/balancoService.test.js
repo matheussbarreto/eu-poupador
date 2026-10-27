@@ -1,9 +1,55 @@
-import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, calcularDespesasPorTipo, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
+import { calcularBalancoMensal, calcularSaldoAcumuladoPrevisto, calcularReceitasPorFonte, calcularReceitasRecebidoPrevisto, calcularDespesasPorCadastro, calcularDespesasGastoPrevisto, calcularDespesasPorCategoria, calcularDespesasPorTipo, calcularDespesasPorUtilidade, obterPrevisaoDoMes, obterMensagemErroBalanco } from "./balancoService";
 
 const referencia = new Date(2026, 9, 16);
 const dataOutubro = new Date(2026, 9, 15, 12).toISOString();
 const receita = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "income", incomingType: "account", ...outros });
 const despesa = (amount, outros = {}) => ({ date: dataOutubro, amount, outgoingType: "account", incomingType: "expense", ...outros });
+
+test("utilidades somam tipos em centavos e preservam os não classificados e o total compartilhado", () => {
+    const despesas = [
+        { id: "a", type: "Despesa Fixa Essencial", expected: 100 },
+        { id: "b", type: "Despesa Variável Essencial" },
+        { id: "c", type: "Despesa Fixa Não Essencial" },
+        { id: "d", type: "Despesa Variável Não Essencial" },
+    ];
+    const transacoes = [
+        despesa(0.1, { inID: "a" }), despesa(0.2, { inID: "b" }),
+        despesa(0.1, { inID: "c" }), despesa(0.2, { inID: "d" }), despesa(0.4),
+    ];
+    const cadastros = calcularDespesasPorCadastro(transacoes, despesas, referencia);
+    const tipos = calcularDespesasPorTipo(cadastros, despesas);
+    tipos.itens.forEach(Object.freeze);
+    Object.freeze(tipos.itens);
+    const dados = calcularDespesasPorUtilidade(Object.freeze(tipos));
+    expect(dados).toEqual({ itens: [
+        { nome: "Essencial", gasto: 0.3, percentual: 30 },
+        { nome: "Não Essencial", gasto: 0.3, percentual: 30 },
+        { nome: "Não classificado", gasto: 0.4, percentual: 40 },
+    ], totalGasto: 1, semDados: false });
+    expect(dados.totalGasto).toBe(tipos.totalGasto);
+    expect(dados.totalGasto).toBe(calcularDespesasGastoPrevisto(cadastros, referencia).gasto);
+    expect(dados.totalGasto).toBe(calcularBalancoMensal(transacoes, referencia).despesas[11]);
+});
+
+test.each([
+    ["Despesa Fixa Essencial", "Essencial"],
+    ["Despesa Variável Não Essencial", "Não Essencial"],
+    ["tipo desconhecido", "Não classificado"],
+])("utilidade com somente %s mantém 100%% e não cria fatias zeradas", (type, nome) => {
+    const despesas = [{ id: "a", type }];
+    const cadastros = calcularDespesasPorCadastro([despesa(50, { inID: "a" })], despesas, referencia);
+    const tipos = calcularDespesasPorTipo(cadastros, despesas);
+    expect(calcularDespesasPorUtilidade(tipos)).toEqual({
+        itens: [{ nome, gasto: 50, percentual: 100 }], totalGasto: 50, semDados: false,
+    });
+});
+
+test("utilidades não incluem previsões nem geram divisão por zero em mês sem gastos", () => {
+    const despesas = [{ id: "a", type: "Despesa Fixa Essencial", expected: 500 }];
+    const cadastros = calcularDespesasPorCadastro([], despesas, referencia);
+    const tipos = calcularDespesasPorTipo(cadastros, despesas);
+    expect(calcularDespesasPorUtilidade(tipos)).toEqual({ itens: [], totalGasto: 0, semDados: true });
+});
 
 test("tipos agrupam em centavos na ordem prevista, mantendo o total dos outros gráficos", () => {
     const despesas = Object.freeze([

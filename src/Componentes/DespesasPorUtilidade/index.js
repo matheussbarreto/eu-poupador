@@ -1,31 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Chart from "react-apexcharts";
 import './DespesasPorUtilidade.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const DespesasPorUtilidade = () => {
-    const [chartData, setChartData] = useState({
-        categories: [
-            "Desp. Essencial",
-            "Desp. Não Essencial",
-        ],
-        values: [],
-    });
+const coresUtilidades = new Map([
+    ["Essencial", "#B0B0B0"], ["Não Essencial", "#FF0000"], ["Não classificado", "#FF9900"],
+]);
 
-    useEffect(() => {
-        setTimeout(() => {
-            setChartData({
-                categories: [
-                    "Desp. Essencial",
-                    "Desp. Não Essencial",
-                ],
-                values: [3950, 6765.04],
-                // values: [100, 100, 100, 100, 100, 100, 100],
-            });
-        }, 1000);
-    }, []);
-
-    const despesasTotal = chartData.values.reduce((acc, val) => acc + val, 0);
+const DespesasPorUtilidade = ({ dados, carregando, erro, onTentarNovamente }) => {
+    const itens = dados?.itens || [];
+    const cores = itens.map((item) => coresUtilidades.get(item.nome) || '#FF9900');
 
     const chartOptions = {
         chart: {
@@ -48,7 +32,6 @@ const DespesasPorUtilidade = () => {
                         },
                         value: {
                             fontSize: '16px',
-                            // fontWeight: 600,
                             offsetY: 0,
                             formatter: function (val) {
                                 return formatCurrency(val)
@@ -56,54 +39,26 @@ const DespesasPorUtilidade = () => {
                         },
                         total: {
                             show: true,
-                            showAlways: false,
+                            showAlways: true,
                             label: 'Total',
                             fontSize: '14px',
                             fontWeight: 700,
                             color: '#373d3f',
-                            formatter: function (w) {
-                                const total = w.globals.seriesTotals.reduce((a, b) => {
-                                    return a + b
-                                }, 0);
-                                return formatCurrency(total)
+                            formatter: function () {
+                                return formatCurrency(dados?.totalGasto || 0)
                             }
                         }
                     },
                 },
             },
         },
-        title: {
-            text: "Despesas Por Utilidade",
-            align: "left",
-            style: {
-                color: "var(--primary-color)",
-                fontSize: 20
-            },
-        },
-        labels: chartData.categories,
-        colors: [ "#B0B0B0", "#FF0000","#B50000", "#808080", "#FFC04D", "#002776", "#FF9900"],
+        labels: itens.map((item) => item.nome),
+        colors: cores,
         dataLabels: {
             enabled: false,
             formatter: (val) => `${val.toFixed(2)}%`,
         },
-        legend: {
-            position: "bottom",
-            formatter: function (seriesName, opts) {
-                const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
-                return ` 
-                    <span><strong>${seriesName}</strong><br/>Porcentagem</span>
-                    <span style="margin-left: auto; text-align:right;">
-                        <strong>${formatCurrency(value)}</strong>
-                        <br/>${percentage}%
-                    </span>`;
-            },
-            fontSize: '13px',
-            markers: {
-                size: 10,
-                offsetX: -3,
-            },
-        },
+        legend: { show: false },
         tooltip: {
             enabled: false,
             theme: false,
@@ -116,7 +71,7 @@ const DespesasPorUtilidade = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 380,
+                        height: 270,
                     },
                     plotOptions: {
                         pie: {
@@ -134,19 +89,38 @@ const DespesasPorUtilidade = () => {
                     },
                 },
             },
-            {
-                breakpoint: 1150,
-                options: {
-                    // chart: {
-                    //     height: 350,
-                    // },
-                },
-            },
         ],
     };
     return (
-        <section className='despesas-por-utilidade donut-chart'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={430} />
+        <section className='despesas-por-utilidade donut-chart' aria-busy={carregando}>
+            <h2>Despesas Por Utilidade</h2>
+            {carregando || erro || !dados ? (
+                <div className="estado-utilidades">
+                    {erro ? <>
+                        <p role="alert">{erro}</p>
+                        <button className="button" onClick={onTentarNovamente}>Tentar novamente</button>
+                    </> : <p role="status">Carregando despesas...</p>}
+                </div>
+            ) : dados.semDados ? (
+                <div className="estado-utilidades">
+                    <p role="status">Não há despesas realizadas no mês selecionado.</p>
+                    <p>Total: {formatCurrency(0)}</p>
+                </div>
+            ) : <>
+                <Chart options={chartOptions} series={itens.map((item) => item.gasto)} type="donut" height={300} />
+                <ul className="legenda-utilidades" aria-label="Gastos por utilidade">
+                    {itens.map((item, indice) => (
+                        <li key={item.nome}>
+                            <span className="cor-utilidade" style={{ backgroundColor: cores[indice] }} aria-hidden="true" />
+                            <span className="nome-utilidade"><strong>{item.nome}</strong><br />Porcentagem</span>
+                            <span className="valor-utilidade">
+                                <strong>{formatCurrency(item.gasto)}</strong><br />
+                                {item.percentual.toFixed(2).replace('.', ',')}%
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            </>}
         </section>
     )
 }

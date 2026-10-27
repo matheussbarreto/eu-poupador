@@ -9,7 +9,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Tela | Rota | Integração atual |
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
-| Balanço Mensal | `/` | Os oito primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)**, **Despesas: Gasto vs. Previsto por despesa**, **Despesas: Gasto vs. Previsto (totais)**, **Despesas por Categoria** e **Despesas por Tipo** — usam dados do usuário no Firestore. Os demais gráficos ainda usam dados de demonstração. |
+| Balanço Mensal | `/` | Os nove primeiros gráficos — **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte**, **Receitas: Recebido vs. Previsto (totais)**, **Despesas: Gasto vs. Previsto por despesa**, **Despesas: Gasto vs. Previsto (totais)**, **Despesas por Categoria**, **Despesas por Tipo** e **Despesas por Utilidade** — usam dados do usuário no Firestore. O último gráfico ainda usa dados de demonstração. |
 | Objetivos | `/objetivos` | Dados de demonstração, sem integração com os dados financeiros do usuário. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
@@ -100,7 +100,7 @@ O carregamento e o cálculo têm responsabilidades separadas:
    permanecem iguais.
 4. `SaldoReceitasDespesas` recebe os resultados por propriedades e apresenta o gráfico.
 
-Os oito primeiros gráficos compartilham as transações carregadas pela página.
+Os nove primeiros gráficos compartilham as transações carregadas pela página.
 O segundo reutiliza o saldo mensal calculado pelo primeiro e acrescenta as previsões,
 com uma função de cálculo própria. O terceiro agrupa os recebimentos por fonte e
 reutiliza as previsões de receitas já carregadas, sem abrir novas consultas.
@@ -111,6 +111,8 @@ O sexto compara os totais já calculados pelo quinto, sem repetir as somas.
 O sétimo agrupa os gastos do quinto pela categoria atual dos cadastros de despesas,
 também sem novas consultas.
 O oitavo usa os mesmos gastos e cadastros para agrupá-los pelo tipo de despesa.
+O nono reúne os totais por tipo em essenciais, não essenciais e não classificados,
+sem consultar novamente os cadastros ou percorrer as transações.
 Os demais gráficos ainda precisam ser ligados aos dados compartilhados ou às fontes
 adicionais de que necessitarem.
 
@@ -317,8 +319,31 @@ despesas. Meses sem gastos exibem mensagem e total zero, mesmo com previsões ca
 Assim como no gráfico por categoria, utiliza a classificação atual do cadastro para
 todos os meses e depende da validade dos dados usados no cálculo do quinto gráfico.
 
-Os gráficos seguintes, **Despesas por Utilidade** e **Despesas por Tipo: Gasto vs.
-Previsto**, ainda usam dados de demonstração.
+### Despesas por Utilidade
+
+O nono gráfico apresenta a distribuição dos gastos realizados no mês em três grupos.
+`calcularDespesasPorUtilidade` recebe o resultado de `calcularDespesasPorTipo` e reúne:
+
+| Grupo | Tipos que o compõem |
+| --- | --- |
+| Essencial | Despesa Fixa Essencial + Despesa Variável Essencial |
+| Não Essencial | Despesa Fixa Não Essencial + Despesa Variável Não Essencial |
+| Não classificado | Gastos sem classificação reconhecida, preservados no oitavo gráfico |
+
+Os valores são somados em centavos. O total é reutilizado do oitavo gráfico, e cada
+percentual corresponde ao gasto do grupo dividido por esse total, vezes 100.
+Previsões não entram nas fatias. Grupos sem gastos não aparecem na legenda ou na rosca.
+
+O centro mantém o total mensal e a legenda em React exibe valores e percentuais,
+com cores fixas: cinza para Essencial, vermelho para Não Essencial e laranja para
+Não classificado. Um mês sem gastos apresenta mensagem e total zero, mesmo que
+existam previsões. Carregamento, erros e nova tentativa são compartilhados com os
+outros gráficos de despesas, sem novas consultas ao Firebase.
+
+Como deriva do gráfico por tipo, acompanha a classificação atual do cadastro,
+inclusive para meses anteriores, e depende da validade dos dados usados nesse cálculo.
+
+O último gráfico, **Despesas por Tipo: Gasto vs. Previsto**, ainda usa dados de demonstração.
 
 ## Organização
 
@@ -335,6 +360,7 @@ Previsto**, ainda usam dados de demonstração.
 - `src/Componentes/DespesasGastoPrevisto/`: comparação dos totais mensais de despesas e controles das barras.
 - `src/Componentes/DespesasPorCategoria/`: gastos mensais agrupados por categoria, rosca e legenda.
 - `src/Componentes/DespesasPorTipo/`: gastos mensais pelos quatro tipos e pelo grupo Não classificado.
+- `src/Componentes/DespesasPorUtilidade/`: gastos essenciais, não essenciais e não classificados a partir dos totais por tipo.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -370,6 +396,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   cores estáveis e mês sem gastos, mesmo com previsões cadastradas.
 - Tipos com agrupamento em centavos, classificações ausentes ou desconhecidas,
   cores fixas, atualização da classificação e consistência com os demais totais de despesas.
+- Utilidades com soma dos tipos em centavos, preservação dos não classificados,
+  percentuais, cores estáveis e estados com um único grupo ou sem gastos.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -412,6 +440,11 @@ No oitavo gráfico, compare os quatro tipos com o aplicativo e confira os gastos
 Não classificado. O total deve coincidir com os gráficos por cadastro, totais e categoria.
 Verifique reclassificação, troca de mês, cores e quebras de linha na legenda.
 
+No nono gráfico, confira Essencial como a soma dos dois tipos essenciais do oitavo,
+Não Essencial como a soma dos dois tipos não essenciais e Não classificado com o mesmo
+valor do gráfico por tipo. Verifique os totais, percentuais, troca de mês e atualização
+após reclassificar uma despesa.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -426,5 +459,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login e dos oito primeiros gráficos também
+a assinatura da conta. Faça a verificação de login e dos nove primeiros gráficos também
 no endereço publicado.

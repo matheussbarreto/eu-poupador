@@ -1,12 +1,52 @@
-/* .despesas-por-utilidade {
-    width: 32.5%;
+.despesas-por-utilidade .estado-utilidades {
+    min-height: 402px;
 }
 
-.despesas-por-utilidade .apexcharts-legend-series {
+.despesas-por-utilidade .estado-utilidades p {
+    margin: 16px 0;
+}
+
+.despesas-por-utilidade .legenda-utilidades {
     width: 80%;
+    margin: 10px auto 0;
+    font-size: 13px;
+    line-height: 17px;
 }
 
-.despesas-por-utilidade .apexcharts-legend-text {
+.despesas-por-utilidade .legenda-utilidades li {
     display: flex;
-    width: 100%;
-} */
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.despesas-por-utilidade .cor-utilidade {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.despesas-por-utilidade .nome-utilidade {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.despesas-por-utilidade .valor-utilidade {
+    flex-shrink: 0;
+    padding-left: 12px;
+    text-align: right;
+}
+
+@media only screen and (max-width: 1330px) {
+    .despesas-por-utilidade .legenda-utilidades {
+        width: 95%;
+    }
+}
+
+@media only screen and (max-width: 1300px) {
+    .despesas-por-utilidade .estado-utilidades {
+        min-height: 352px;
+    }
+}

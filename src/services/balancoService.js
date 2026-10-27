@@ -296,6 +296,26 @@ export function calcularDespesasPorTipo(despesasPorCadastro, despesas) {
     return { itens, totalGasto: despesasPorCadastro.totalGasto, semDados: totalCentavos === 0 };
 }
 
+export function calcularDespesasPorUtilidade(despesasPorTipo) {
+    const utilidadesPorTipo = new Map([
+        ["Despesa Fixa Essencial", "Essencial"], ["Despesa Variável Essencial", "Essencial"],
+        ["Despesa Fixa Não Essencial", "Não Essencial"], ["Despesa Variável Não Essencial", "Não Essencial"],
+    ]);
+    const grupos = new Map([["Essencial", 0], ["Não Essencial", 0], ["Não classificado", 0]]);
+    despesasPorTipo.itens.forEach((item) => {
+        const nome = utilidadesPorTipo.get(item.nome) || "Não classificado";
+        grupos.set(nome, grupos.get(nome) + Math.round(item.gasto * 100));
+    });
+    const totalCentavos = Math.round(despesasPorTipo.totalGasto * 100);
+    const itens = [...grupos.entries()]
+        .filter(([, centavos]) => centavos > 0)
+        .map(([nome, centavos]) => ({
+            nome, gasto: centavos / 100,
+            percentual: totalCentavos === 0 ? 0 : centavos / totalCentavos * 100,
+        }));
+    return { itens, totalGasto: despesasPorTipo.totalGasto, semDados: totalCentavos === 0 };
+}
+
 export function calcularReceitasRecebidoPrevisto(receitasPorFonte, dataSelecionada) {
     const { totalRecebido, totalPrevisto, diferenca, semDados } = receitasPorFonte;
     return {
