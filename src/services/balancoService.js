@@ -296,6 +296,34 @@ export function calcularDespesasPorTipo(despesasPorCadastro, despesas) {
     return { itens, totalGasto: despesasPorCadastro.totalGasto, semDados: totalCentavos === 0 };
 }
 
+export function calcularDespesasPorTipoGastoPrevisto(despesasPorCadastro, despesas) {
+    const tipos = new Map([
+        "Despesa Fixa Essencial", "Despesa Variável Essencial",
+        "Despesa Fixa Não Essencial", "Despesa Variável Não Essencial", "Não classificado",
+    ].map((nome) => [nome, { gasto: 0, previsto: 0 }]));
+    const tiposPorId = new Map(despesas.map((despesa) => [
+        `id:${despesa.id}`, typeof despesa.type === "string" ? despesa.type.trim() : "",
+    ]));
+    despesasPorCadastro.itens.forEach((item) => {
+        const tipo = tiposPorId.get(item.id);
+        const grupo = tipos.get(tipos.has(tipo) ? tipo : "Não classificado");
+        grupo.gasto += Math.round(item.gasto * 100);
+        grupo.previsto += Math.round(item.previsto * 100);
+    });
+    const itens = [...tipos.entries()]
+        .filter(([, grupo]) => grupo.gasto !== 0 || grupo.previsto !== 0)
+        .map(([nome, grupo]) => ({
+            nome, gasto: grupo.gasto / 100, previsto: grupo.previsto / 100,
+            percentual: grupo.previsto === 0 ? null : grupo.gasto / grupo.previsto * 100,
+        }));
+    const { totalGasto, totalPrevisto, diferenca, semDados } = despesasPorCadastro;
+    return {
+        itens, totalGasto, totalPrevisto, diferenca,
+        diferencaPercentual: totalPrevisto === 0 ? null : diferenca / totalPrevisto * 100,
+        semDados,
+    };
+}
+
 export function calcularDespesasPorUtilidade(despesasPorTipo) {
     const utilidadesPorTipo = new Map([
         ["Despesa Fixa Essencial", "Essencial"], ["Despesa Variável Essencial", "Essencial"],

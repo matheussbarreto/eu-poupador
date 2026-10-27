@@ -1,6 +1,15 @@
 .despesas-por-tipo-gasto-previsto {
-    /* flex: 3; */
     width: 100%;
+}
+
+.despesas-por-tipo-gasto-previsto h2 {
+    color: var(--primary-color);
+    font-size: 20px;
+    margin: 0 0 12px;
+}
+
+.despesas-por-tipo-gasto-previsto .estado-despesas-tipo-previsto {
+    min-height: 300px;
 }
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text {
@@ -18,16 +27,9 @@
 }
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text span {
-    /* flex: 1; */
     text-align: left;
 }
 
 .despesas-por-tipo-gasto-previsto .apexcharts-legend-text span:last-child {
     width: 60%;
-}
-
-@media only screen and (max-width: 1300px) {
-    /* .despesas-por-tipo-gasto-previsto {
-        width: 66.25%;
-    } */
 }

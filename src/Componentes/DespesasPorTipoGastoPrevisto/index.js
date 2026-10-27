@@ -1,229 +1,61 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Chart from "react-apexcharts";
 import './DespesasPorTipoGastoPrevisto.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const DespesasPorTipoGastoPrevisto = () => {
-
-    // // Calcula a soma dos valores de Recebido e Previsto antes de definir o estado
-    // let totalGasto = 0;
-    // let totalPrevisto = 0;
-
-    // const seriesData = [
-    //     {
-    //         x: 'Trabalho 01',
-    //         y: 100,
-    //         // goals: [
-    //         //     {
-    //         //         name: 'Previsto',
-    //         //         value: 1500,
-    //         //         strokeWidth: 3,
-    //         //         // strokeHeight: 10,
-    //         //         // strokeDashArray: 2,
-    //         //         strokeColor: '#8a8a8a'
-    //         //     }
-    //         // ]
-    //     },
-    //     {
-    //         x: 'Trabalho 02',
-    //         y: 4400,
-    //         goals: [
-    //             {
-    //                 name: 'Previsto',
-    //                 value: 5400,
-    //                 strokeWidth: 3,
-    //                 // strokeHeight: 10,
-    //                 strokeColor: '#8a8a8a'
-    //             }
-    //         ]
-    //     },
-    //     {
-    //         x: 'Renda Extra',
-    //         y: 5400,
-    //         goals: [
-    //             {
-    //                 name: 'Previsto',
-    //                 value: 5200,
-    //                 strokeWidth: 3,
-    //                 // strokeHeight: 10,
-    //                 // strokeLineCap: 'round',
-    //                 strokeColor: '#8a8a8a'
-    //             }
-    //         ]
-    //     }
-    // ];
-
-    // // Calcula os totais
-    // seriesData.forEach(item => {
-    //     totalGasto += item.y;
-    //     if (item.goals && item.goals.length) {
-    //         totalPrevisto += item.goals[0].value;
-    //     }
-    // });
-
-    const [despGastoCatChart, setDespGastoCatChart] = useState({
-        series: [],
-        options: {
-            chart: {
-                type: 'bar',
-                toolbar: {
-                    show: false, // Ocultar as opções de ferramentas, caso deseje
-                },
-                fontFamily: '"Segoe UI", "Cocogoose", "Didact Gothic", sans-serif',
+const DespesasPorTipoGastoPrevisto = ({ dados, carregando, erro, onTentarNovamente }) => {
+    const itens = dados?.itens || [];
+    const diferenca = dados?.diferenca || 0;
+    const percentual = dados?.diferencaPercentual == null ? null : Number(dados.diferencaPercentual.toFixed(2));
+    const textoPercentual = percentual === null ? '—' :
+        (dados.diferencaPercentual >= 0 ? '+' : '') + percentual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+    const series = [{
+        name: 'Gasto',
+        data: itens.map((item) => ({
+            x: item.nome, y: item.gasto,
+            goals: [{ name: 'Previsto', value: item.previsto, strokeWidth: 5, strokeColor: 'var(--tertiary-color)' }],
+        })),
+    }];
+    const options = {
+        chart: { type: 'bar', toolbar: { show: false }, fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif' },
+        plotOptions: { bar: { horizontal: true, barHeight: '40%' } },
+        colors: ['var(--red-color)'],
+        dataLabels: {
+            textAnchor: 'middle', offsetY: 23,
+            background: { enabled: true, foreColor: '#585858' },
+            formatter: (valor, { dataPointIndex }) => {
+                const percentual = itens[dataPointIndex]?.percentual;
+                const texto = percentual == null ? '—' : percentual.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%';
+                return `Gasto: ${formatCurrency(valor)} (${texto})`;
             },
-            title: {
-                text: 'Método 4D (Despesas Por Tipo): Gasto vs. Previsto',
-                style: {
-                    color: "var(--primary-color)",
-                    fontSize: 20
-                },
-            },
-            plotOptions: {
-                bar: {
-                    horizontal: true,
-                    barHeight: '40%',
-                }
-            },
-            colors: ['var(--red-color)'],
-            markers: {
-                // colors: ['#8a8a8a'],
-            },
-            dataLabels: {
-                // enabled: true,
-                textAnchor: 'middle',
-                // offsetX: -50,
-                offsetY: 23,
-                background: {
-                    enabled: true,
-                    foreColor: '#585858',
-                },
-                formatter: function (val, opt) {
-                    const goals = opt.w.config.series[opt.seriesIndex].data[opt.dataPointIndex].goals;
-                    if (goals && goals.length) {
-                        const goalExpected = goals[0].value;
-                        const percentage = ((val / goalExpected) * 100).toFixed(0);
-                        return `Gasto:  ${formatCurrency(val)} (${percentage}%)`;
-                    }
-                    return `Gasto: ${formatCurrency(val)}`;
-                },
-            },
-            legend: {
-                show: true,
-                fontSize: 16,
-                offsetY: -20,
-                position: 'top',
-                horizontalAlign: 'right',
-                showForSingleSeries: true,
-                // customLegendItems: [
-                //     `<span>Recebido</span> <span>${formatCurrency(totalGasto)}</span>`,
-                //     `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`
-                // ],
-                customLegendItems: ['Gasto', 'Previsto'],
-                markers: {
-                    fillColors: ['var(--red-color)', 'var(--tertiary-color)'],
-                    size: 7,
-                    shape: 'circle',
-                },
-            },
-            xaxis: {
-                labels: {
-                    formatter: function (val, index) {
-                        // return `R$ ${val}`;
-                        return formatCurrency(val, 0);
-                    }
-                },
-            },
-            tooltip: {
-                marker: {
-                    show: false,
-                },
-                followCursor: true,
-                y: {
-                    formatter: function (val) {
-                        return formatCurrency(val);
-                    }
-                }
-            }
         },
-    });
-
-    // Simulação da API (substituir com fetch/axios no futuro)
-    const fetchChartData = async () => {
-        try {
-            // Simulação de resposta da API
-            const response = await new Promise((resolve) =>
-                setTimeout(() => resolve([
-                    { despesa: 'Desp. Fixa Essencial', gasto: 3000, previsto: 3000 },
-                    { despesa: 'Desp. Variável Essencial', gasto: 950, previsto: 2000 },
-                    { despesa: 'Desp. Fixa Não Essencial', gasto: 217.90, previsto: 300 },
-                    { despesa: 'Desp. Variável Não Essencial', gasto: 6547.14, previsto: 1000 }
-                ]), 1000)
-            );
-
-            // Transformando os dados no formato esperado pelo gráfico
-            const formattedData = response.map(item => ({
-                x: item.despesa,
-                y: item.gasto,
-                goals: [{
-                    name: 'Previsto',
-                    value: item.previsto || 0,
-                    strokeWidth: 5,
-                    strokeColor: 'var(--tertiary-color)'
-                }]
-            }));
-
-            // Calculando a soma total de Recebido + Previsto
-            const totalGasto = response.reduce((acc, item) => {
-                const valor = parseFloat(item.gasto) || 0;
-                return acc + valor;
-            }, 0);
-            const totalPrevisto = response.reduce((acc, item) => {
-                const valor = parseFloat(item.previsto) || 0;
-                return acc + valor;
-            }, 0);
-            const diferencaGeral = (totalPrevisto - totalGasto);
-            const valueColor = diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)';
-            const diferencaPercentual = totalPrevisto
-            ? ((diferencaGeral / totalPrevisto) * 100).toFixed(2).replace('.', ',')
-            : 0;
-            // Atualizando o estado do gráfico com os novos dados
-            setDespGastoCatChart(prev => ({
-                ...prev,
-                series: [{ name: 'Gasto', data: formattedData }],
-                totalValue: diferencaGeral,
-                options: {
-                    ...prev.options,
-                    legend: {
-                        ...prev.options.legend,
-                        customLegendItems: [
-                            `<span>Gasto</span> <span>${formatCurrency(totalGasto)}</span>`,
-                            `<span>Previsto</span> <span>${formatCurrency(totalPrevisto)}</span>`,
-                            `<span>Diferença</span> <span style="color: ${valueColor};">${(diferencaGeral >= 0 ? '+' : '') + formatCurrency(diferencaGeral)}<br/>(${(diferencaGeral >= 0 ? '+' : '') + diferencaPercentual}%)</span>`
-                        ]
-                    }
-                }
-            }));
-
-        } catch (error) {
-            console.error("Erro ao buscar os dados da API", error);
-        }
+        legend: {
+            show: true, fontSize: 16, position: 'top', horizontalAlign: 'right', showForSingleSeries: true,
+            customLegendItems: [
+                `<span>Gasto</span> <span>${formatCurrency(dados?.totalGasto || 0)}</span>`,
+                `<span>Previsto</span> <span>${formatCurrency(dados?.totalPrevisto || 0)}</span>`,
+                `<span>Diferença</span> <span style="color: ${diferenca < 0 ? 'var(--red-color)' : 'var(--primary-color)'};">${(diferenca >= 0 ? '+' : '') + formatCurrency(diferenca)}<br />(${textoPercentual})</span>`,
+            ],
+            markers: { fillColors: ['var(--red-color)', 'var(--tertiary-color)'], size: 7, shape: 'circle' },
+            onItemClick: { toggleDataSeries: false }, onItemHover: { highlightDataSeries: false },
+        },
+        xaxis: { labels: { formatter: (valor) => formatCurrency(valor, 0) } },
+        yaxis: { labels: { maxWidth: 230 } },
+        tooltip: { marker: { show: false }, followCursor: true, y: { formatter: (valor) => formatCurrency(valor) } },
+        noData: { text: '' },
     };
 
-    // Chamar API quando o componente for montado
-    useEffect(() => {
-        fetchChartData();
-    }, []);
-
     return (
-        <section className="despesas-por-tipo-gasto-previsto">
-            <Chart
-                options={despGastoCatChart.options}
-                series={despGastoCatChart.series}
-                type="bar"
-                height={475}
-            />
+        <section className="despesas-por-tipo-gasto-previsto" aria-busy={carregando}>
+            <h2>Método 4D (Despesas Por Tipo): Gasto vs. Previsto</h2>
+            {carregando || erro || !dados ? <div className="estado-despesas-tipo-previsto">
+                {erro ? <><p role="alert">{erro}</p><button className="button" onClick={onTentarNovamente}>Tentar novamente</button></> :
+                    <p role="status">Carregando despesas e previsões...</p>}
+            </div> : dados.semDados ? <div className="estado-despesas-tipo-previsto">
+                <p role="status">Não há despesas realizadas ou previstas no mês selecionado.</p>
+            </div> : <Chart options={options} series={series} type="bar" height={Math.max(475, itens.length * 70 + 180)} />}
         </section>
     );
-}
+};
 
 export default DespesasPorTipoGastoPrevisto;

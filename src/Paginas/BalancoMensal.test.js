@@ -10,7 +10,6 @@ jest.mock("../services/transacoesService", () => ({
 }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories || props.options.labels })}</div>);
 jest.mock("../services/previsoesService", () => ({ observarPrevisoes: jest.fn() }));
-jest.mock("../Componentes/DespesasPorTipoGastoPrevisto", () => () => null);
 
 let container;
 let root;
@@ -39,6 +38,75 @@ const tiposDespesas = () => container.querySelector('.despesas-por-tipo');
 const graficoTipos = () => tiposDespesas().querySelector('[data-testid="grafico"]');
 const utilidadesDespesas = () => container.querySelector('.despesas-por-utilidade');
 const graficoUtilidades = () => utilidadesDespesas().querySelector('[data-testid="grafico"]');
+const comparacaoTipos = () => container.querySelector('.despesas-por-tipo-gasto-previsto');
+const graficoComparacaoTipos = () => comparacaoTipos().querySelector('[data-testid="grafico"]');
+const valoresComparacaoTipos = () => JSON.parse(graficoComparacaoTipos().textContent).series[0].data.map((item) => [item.x, item.y, item.goals[0].value]);
+
+test("comparação por tipo compartilha gastos e previsões e acompanha reclassificações sem novas consultas", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber([transacoes(100)[1], { ...transacoes(100)[1], inID: "ausente", amount: 20 }]));
+    expect(graficoComparacaoTipos()).toBeNull();
+    const cadastros = { receitas: [], despesas: [
+        { id: "d", type: "Despesa Fixa Essencial", expected: 100 },
+        { id: "e", type: "Despesa Variável Essencial", expected: 50 },
+    ] };
+    await act(async () => consultasPrevisoes[0].receber(cadastros));
+    expect(valoresComparacaoTipos()).toEqual([
+        ["Despesa Fixa Essencial", 30, 100], ["Despesa Variável Essencial", 0, 50], ["Não classificado", 20, 0],
+    ]);
+    const totais = valoresComparacaoTipos().reduce(([gasto, previsto], [, g, p]) => [gasto + g, previsto + p], [0, 0]);
+    expect(totais).toEqual(JSON.parse(graficoResumoDespesas().textContent).series.map((serie) => serie.data[0]));
+    expect(totais).toEqual(JSON.parse(graficoDespesas().textContent).series[0].data.reduce(([g, p], item) => [g + item.y, p + item.goals[0].value], [0, 0]));
+    expect(valoresComparacaoTipos().filter(([, gasto]) => gasto > 0).map(([, gasto]) => gasto)).toEqual(JSON.parse(graficoTipos().textContent).series);
+    await act(async () => consultasPrevisoes[0].receber({ ...cadastros, despesas: cadastros.despesas.map((item) => ({ ...item, type: "Despesa Variável Não Essencial" })) }));
+    expect(valoresComparacaoTipos()).toEqual([["Despesa Variável Não Essencial", 30, 150], ["Não classificado", 20, 0]]);
+    await act(async () => consultas[0].receber([{ ...transacoes(100)[1], amount: 200 }]));
+    expect(valoresComparacaoTipos()).toEqual([["Despesa Variável Não Essencial", 200, 150]]);
+    expect(consultas).toHaveLength(1);
+    expect(consultasPrevisoes).toHaveLength(1);
+});
+
+test("comparação por tipo isola dados ao mudar mês e conta e ignora callbacks antigos", async () => {
+    const cadastros = { receitas: [], despesas: [{ id: "d", type: "Despesa Fixa Essencial", expectedHistory: [
+        { date: "2026-8", goal: 70 }, { date: "2026-9", goal: 100 },
+    ] }] };
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].receber(cadastros));
+    expect(valoresComparacaoTipos()).toEqual([["Despesa Fixa Essencial", 30, 100]]);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoComparacaoTipos()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoComparacaoTipos()).toBeNull();
+    await act(async () => consultas[1].receber([]));
+    expect(valoresComparacaoTipos()).toEqual([["Despesa Fixa Essencial", 0, 70]]);
+    expect(consultasPrevisoes).toHaveLength(1);
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => consultasPrevisoes[0].receber(cadastros));
+    expect(graficoComparacaoTipos()).toBeNull();
+    await act(async () => consultasPrevisoes[1].receber({ receitas: [], despesas: [] }));
+    expect(graficoComparacaoTipos()).toBeNull();
+    expect(comparacaoTipos().textContent).toContain("Não há despesas realizadas ou previstas");
+});
+
+test("nova tentativa pelo décimo gráfico recupera apenas a fonte com falha", async () => {
+    await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => consultasPrevisoes[0].falhar({ code: "permission-denied" }));
+    expect(comparacaoTipos().querySelector('[role="alert"]')).not.toBeNull();
+    expect(graficoComparacaoTipos()).toBeNull();
+    await act(async () => comparacaoTipos().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => consultasPrevisoes[1].receber(previsoes(100)));
+    expect(valoresComparacaoTipos()).toEqual([["Não classificado", 30, 20]]);
+    await act(async () => consultas[0].falhar({ code: "unavailable" }));
+    expect(graficoComparacaoTipos()).toBeNull();
+    await act(async () => comparacaoTipos().querySelector('button').click());
+    expect(consultasPrevisoes).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(100)));
+    expect(graficoComparacaoTipos()).not.toBeNull();
+});
 
 test("utilidades acompanham tipos, reclassificações, mês e usuário sem novas consultas", async () => {
     await act(async () => root.render(<BalancoMensal usuarioId="usuario-a" />));
