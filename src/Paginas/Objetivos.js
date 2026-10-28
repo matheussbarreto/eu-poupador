@@ -8,20 +8,24 @@ import RealizadoPrevistoPlanejamentoMensal from "../Componentes/RealizadoPrevist
 import TituloDaPagina from "../Componentes/TituloDaPagina";
 import MonthSelector from "../Componentes/MonthSelector";
 import { observarInvestimentos } from "../services/investimentosService";
-import { observarTransacoes } from "../services/transacoesService";
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
+import { observarTransacoes, observarSaldosIniciais } from "../services/transacoesService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
 
 const Objetivos = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
     const [consulta, setConsulta] = useState({});
     const [cadastros, setCadastros] = useState({});
+    const [origens, setOrigens] = useState({});
     const [tentativa, setTentativa] = useState(0);
     const [tentativaCadastros, setTentativaCadastros] = useState(0);
+    const [tentativaOrigens, setTentativaOrigens] = useState(0);
     const ano = dataSelecionada.getFullYear();
     const mes = dataSelecionada.getMonth();
     const periodo = `${usuarioId}/${ano}/${mes}`;
     const carregandoTransacoes = consulta.periodo !== periodo || consulta.carregando;
     const carregandoCadastros = cadastros.usuarioId !== usuarioId || cadastros.carregando;
+    const carregandoOrigens = origens.usuarioId !== usuarioId || origens.carregando;
+    const temDividas = cadastros.usuarioId === usuarioId && cadastros.investimentos?.some((item) => item.isDeleted !== true && item.objective === "Dívida");
 
     useEffect(() => {
         let ativo = true;
@@ -63,6 +67,26 @@ const Objetivos = ({ usuarioId }) => {
         };
     }, [usuarioId, tentativaCadastros]);
 
+    useEffect(() => {
+        let ativo = true;
+        let cancelar;
+        setOrigens({ usuarioId, carregando: true });
+        const tratarErro = (erro) => {
+            if (ativo) setOrigens({ usuarioId, carregando: false, erro: obterMensagemErroObjetivos(erro) });
+        };
+        try {
+            cancelar = observarSaldosIniciais(usuarioId, (saldosIniciais) => {
+                if (ativo) setOrigens({ usuarioId, saldosIniciais, carregando: false });
+            }, tratarErro);
+        } catch (erro) {
+            tratarErro(erro);
+        }
+        return () => {
+            ativo = false;
+            if (cancelar) cancelar();
+        };
+    }, [usuarioId, tentativaOrigens]);
+
     const planejamentoMensal = useMemo(() => {
         if (carregandoTransacoes || carregandoCadastros || consulta.erro || cadastros.erro || !consulta.transacoes || !cadastros.investimentos) return {};
         try {
@@ -83,6 +107,21 @@ const Objetivos = ({ usuarioId }) => {
         ? calcularRealizadoPrevistoMensal(planejamentoMensal.dados, new Date(ano, mes, 1))
         : undefined, [planejamentoMensal.dados, ano, mes]);
 
+    const planejamentoGlobal = useMemo(() => {
+        if (carregandoCadastros || cadastros.erro || !cadastros.investimentos ||
+            (temDividas && (carregandoOrigens || origens.erro || !origens.saldosIniciais))) return {};
+        try {
+            return { dados: calcularPlanejamentoGlobal(cadastros.investimentos, temDividas ? origens.saldosIniciais : []) };
+        } catch (erro) {
+            return { erro: obterMensagemErroObjetivos(erro), origemErro: erro.code === "app/origem-divida-invalida" ? "origens" : "cadastros" };
+        }
+    }, [cadastros.investimentos, cadastros.erro, carregandoCadastros, origens.saldosIniciais, origens.erro, carregandoOrigens, temDividas]);
+
+    const erroGlobal = (!carregandoCadastros && cadastros.erro) || (temDividas && !carregandoOrigens && origens.erro) || planejamentoGlobal.erro;
+    const tentarNovamenteGlobal = () => {
+        if (cadastros.erro || planejamentoGlobal.origemErro === "cadastros") setTentativaCadastros((valor) => valor + 1);
+        if (temDividas && (origens.erro || planejamentoGlobal.origemErro === "origens")) setTentativaOrigens((valor) => valor + 1);
+    };
     const erro = (!carregandoTransacoes && consulta.erro) || (!carregandoCadastros && cadastros.erro) || planejamentoMensal.erro;
     const tentarNovamente = () => {
         if (consulta.erro || planejamentoMensal.origemErro === "transacoes") setTentativa((valor) => valor + 1);
@@ -115,7 +154,13 @@ const Objetivos = ({ usuarioId }) => {
                     onTentarNovamente={tentarNovamente}
                 />
             </div>
-            <AcumulosAmortizacoesPlanejamentoGlobal />
+            <AcumulosAmortizacoesPlanejamentoGlobal
+                key={usuarioId}
+                dados={planejamentoGlobal.dados}
+                carregando={!erroGlobal && (carregandoCadastros || (temDividas && carregandoOrigens))}
+                erro={erroGlobal}
+                onTentarNovamente={tentarNovamenteGlobal}
+            />
             <div className="container-left">
                 <AcumulosAmortizacoesCompromissoGlobal />
                 <AtualDesesjadoPlanejamentoGlobal />

@@ -86,6 +86,62 @@ export function calcularRealizadoPrevistoMensal(planejamentoMensal, dataSelecion
     };
 }
 
+function obterCentavosObjetivo(valor, permitirNegativo = true) {
+    const numero = Number(valor);
+    const centavos = Math.round((numero + Number.EPSILON) * 100);
+    if (!["number", "string"].includes(typeof valor) || String(valor).trim() === "" ||
+        !Number.isFinite(numero) || !Number.isSafeInteger(centavos) || (!permitirNegativo && numero < 0)) {
+        const erro = new Error("Há objetivos com saldo ou meta global inválidos.");
+        erro.code = "app/objetivo-invalido";
+        throw erro;
+    }
+    return centavos;
+}
+
+export function calcularPlanejamentoGlobal(investimentos, saldosIniciais = []) {
+    const origens = new Map();
+    saldosIniciais.forEach((transacao) => {
+        if (transacao.isDeleted === true || transacao.outgoingType !== "create" || transacao.incomingType !== "investment" || !transacao.inID) return;
+        if (!origens.has(transacao.inID)) origens.set(transacao.inID, []);
+        origens.get(transacao.inID).push(transacao);
+    });
+    const objetivos = investimentos.filter((investimento) => investimento.isDeleted !== true).map((investimento) => {
+        const divida = investimento.objective === "Dívida";
+        const atual = obterCentavosObjetivo(investimento.current);
+        // Dívidas têm como destino a quitação; o percentual usa o saldo negativo original.
+        const desejado = divida ? 0 : obterCentavosObjetivo(investimento.montante ?? 0, false);
+        let percentual = desejado === 0 ? null : atual / desejado * 100;
+        const criacoes = origens.get(investimento.id) || [];
+        if (divida && criacoes.length === 1) {
+            let original;
+            try {
+                original = obterCentavosObjetivo(criacoes[0].amount);
+            } catch (erro) {
+                erro.code = "app/origem-divida-invalida";
+                throw erro;
+            }
+            // Sem uma origem negativa única não há uma base segura para o percentual.
+            if (original < 0) percentual = Math.min(100, (Math.abs(original) + atual) / Math.abs(original) * 100);
+        }
+        return {
+            id: investimento.id,
+            nome: typeof investimento.nome === "string" && investimento.nome.trim() ? investimento.nome.trim() : "Objetivo sem nome",
+            ordem: Number.isFinite(investimento.order) ? investimento.order : Infinity,
+            atual, desejado, divida, percentual,
+            concluido: divida ? atual >= 0 : desejado > 0 && atual >= desejado,
+        };
+    }).sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, "pt-BR") || a.id.localeCompare(b.id));
+    const totalAtual = objetivos.reduce((soma, item) => soma + item.atual, 0);
+    const totalDesejado = objetivos.reduce((soma, item) => soma + item.desejado, 0);
+    return {
+        itens: objetivos.map(({ ordem, ...item }) => ({ ...item, atual: item.atual / 100, desejado: item.desejado / 100 })),
+        totalAtual: totalAtual / 100,
+        totalDesejado: totalDesejado / 100,
+        diferenca: (totalAtual - totalDesejado) / 100,
+        semDados: objetivos.length === 0,
+    };
+}
+
 export function obterMensagemErroObjetivos(erro) {
     switch (erro?.code) {
         case "permission-denied":
@@ -96,6 +152,10 @@ export function obterMensagemErroObjetivos(erro) {
             return "Há previsões de objetivos com data ou valor inválido. Confira os registros no aplicativo.";
         case "app/lancamento-invalido":
             return "Há aportes ou pagamentos com data ou valor inválido. Confira os registros no aplicativo.";
+        case "app/objetivo-invalido":
+            return "Há objetivos com saldo ou meta global inválidos. Confira os registros no aplicativo.";
+        case "app/origem-divida-invalida":
+            return "Há registros de criação de dívidas com valor inválido. Confira os registros no aplicativo.";
         default:
             return "Não foi possível carregar os objetivos. Tente novamente em instantes.";
     }

@@ -10,7 +10,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
-| Objetivos | `/objetivos` | Os três gráficos mensais, **Aportes e Pagamentos**, **Grau de Compromisso Mensal** e **Realizado vs. Previsto**, compartilham os dados do usuário no Firestore. Os três gráficos globais ainda usam dados de demonstração. |
+| Objetivos | `/objetivos` | Os três gráficos mensais e **Planejamento Global: Acúmulos e Amortizações** compartilham os dados do usuário no Firestore. Os outros dois gráficos globais ainda usam dados de demonstração. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
@@ -372,21 +372,27 @@ tentativa com os demais gráficos de despesas. Não há consultas adicionais ao 
 
 ## Objetivos
 
-A página recebe o identificador da sessão e compartilha duas consultas:
+A página recebe o identificador da sessão e compartilha três consultas:
 
 - `investimentosService.js` observa `users/{uid}/investments`, incluindo investimentos,
   reservas, bens e dívidas. Preserva os campos e usa o ID do documento como identificador.
 - `transacoesService.js` observa as transações **somente do mês selecionado**, com início
   inclusivo e fim exclusivo, seguindo o calendário local do navegador.
+- `observarSaldosIniciais`, no mesmo serviço, observa apenas os registros com
+  `outgoingType === "create"`, independentemente do mês. Essa consulta única fornece
+  a base original das dívidas; não busca todo o histórico nem consulta por cartão.
 
-Os cadastros permanecem carregados ao trocar de mês; somente a consulta de transações
-é refeita. As duas consultas são encerradas ao sair da página ou trocar de usuário,
+Os cadastros e saldos iniciais permanecem carregados ao trocar de mês; somente a consulta
+de transações mensais é refeita. As três consultas são encerradas ao sair da página ou trocar de usuário,
 e respostas antigas são ignoradas. Falhas permitem repetir apenas a fonte afetada.
 
 `objetivosService.js` calcula o planejamento mensal sem consultar o Firebase. A página
 reutiliza esse resultado com `useMemo` e entrega os dados aos componentes por props.
 A base contém os valores por objetivo e os totais. O segundo e o terceiro gráficos
 reutilizam esses totais, sem novas consultas ou repetição da soma das transações.
+O planejamento global usa os mesmos cadastros, com cálculo e estados independentes
+das transações mensais. Quando há dívidas, também aguarda os registros de criação
+para calcular o percentual quitado. Os gráficos mensais não dependem dessa terceira fonte.
 
 ### Planejamento Mensal: Aportes e Pagamentos
 
@@ -421,8 +427,7 @@ Ao trocar de mês ou conta, os controles são reiniciados; quando a lista diminu
 atual é ajustada para continuar válida.
 
 O componente trata carregamento, falha com nova tentativa, mês vazio e filtro sem
-resultados. Os três gráficos mensais acompanham o seletor de mês;
-os três gráficos globais permanecem demonstrativos.
+resultados. Os três gráficos mensais acompanham o seletor de mês.
 
 ### Grau de Compromisso Mensal: Aportes e Pagamentos
 
@@ -454,12 +459,53 @@ Carregamento, erros e nova tentativa são compartilhados com os outros gráficos
 mensais. Um mês sem aportes e previsões exibe mensagem de ausência de dados;
 um mês com apenas previsão continua mostrando a comparação.
 
+### Planejamento Global: Acúmulos e Amortizações
+
+`calcularPlanejamentoGlobal` calcula a **posição atual** a partir dos cadastros ativos
+de `investments`. Este gráfico não representa uma posição histórica: trocar o mês
+mantém seus saldos, metas, filtro e paginação.
+
+- **Atual:** saldo `current` de cada objetivo, incluindo saldos negativos de dívidas.
+- **Desejado:** `montante` para investimentos e bens. Ausência de meta equivale a zero.
+  Para dívidas, o destino é a quitação, representada por zero.
+- **Percentual:** atual dividido pelo desejado, vezes 100, para investimentos e bens
+  com meta positiva. Meta ausente ou zerada exibe `—`.
+  O texto preserva percentuais negativos ou acima de 100%; o arco fica entre 0 e 100%.
+- **Quitação de dívidas:** usa o valor absoluto do saldo negativo original, salvo na
+  transação de criação vinculada pelo `inID`. O percentual é
+  **(valor original + saldo atual) ÷ valor original × 100**. Por exemplo, uma dívida
+  criada com `amount: -1000` e `current: -750` está 25% quitada. Saldo zero ou positivo
+  limita a quitação a 100%; aumento do saldo devedor pode resultar em percentual negativo.
+  O cálculo reflete a redução líquida da dívida, incluindo ajustes presentes no saldo;
+  não é a soma histórica dos pagamentos. Os valores exibidos continuam sendo saldo
+  atual e meta de quitação em zero.
+- **Totais:** soma em centavos de todos os objetivos ativos. O total atual é líquido,
+  incluindo dívidas com sinal negativo; não é uma soma de pagamentos já efetuados.
+  A diferença é o total atual menos o total desejado.
+- **Concluídos:** investimentos e bens com meta positiva atingida ou superada e dívidas
+  com saldo maior ou igual a zero. Objetivos sem meta não são considerados concluídos.
+
+Todos os cadastros ativos são mostrados, inclusive bens sem previsão mensal e objetivos
+com saldo e meta zerados. Cadastros excluídos não entram nos cartões nem nos totais.
+`goal`, `goalHistory`, `aporte` e as movimentações do mês não entram no cálculo global.
+Saldo ausente ou inválido e meta global inválida geram erro, sem serem convertidos em zero.
+Origens excluídas ou de outros tipos são ignoradas. Origem ausente, duplicada ou sem
+saldo inicial negativo exibe `—`, sem inferir o valor original pelo saldo atual ou
+pela previsão mensal. Valor inválido em uma origem vinculada gera erro recuperável.
+
+Há até 12 cartões por página, ordenados por `order`, nome e ID. O filtro de concluídos
+e a paginação não alteram os totais. Quando a lista diminui, a página se ajusta;
+trocar de usuário reinicia os controles e oculta imediatamente os dados anteriores.
+Falhas de transações ou previsões mensais não bloqueiam este gráfico. A nova tentativa
+do gráfico global refaz a fonte afetada: cadastros ou saldos iniciais. Falhas dos saldos
+iniciais não bloqueiam os gráficos mensais nem objetivos globais sem dívidas.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
 - `src/Paginas/Login.js`: página e apresentação inicial.
 - `src/Paginas/BalancoMensal.js`: seleção de período, carregamento compartilhado e cálculo dos dados apresentados.
-- `src/Paginas/Objetivos.js`: consultas compartilhadas de objetivos e transações do mês, com os três gráficos mensais integrados.
+- `src/Paginas/Objetivos.js`: consultas compartilhadas, três gráficos mensais e planejamento global por objetivo.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -475,13 +521,14 @@ um mês com apenas previsão continua mostrando a comparação.
 - `src/Componentes/AportesPagamentosPlanejamentoMensal/`: realizado e previsto mensal por objetivo, filtro e paginação.
 - `src/Componentes/AportesPagamentosCompromissoMensal/`: percentual e totais do compromisso mensal, derivados do planejamento.
 - `src/Componentes/RealizadoPrevistoPlanejamentoMensal/`: comparação mensal dos totais, diferença e controles de visibilidade das barras.
+- `src/Componentes/AcumulosAmortizacoesPlanejamentoGlobal/`: saldos e metas globais por objetivo, filtro de concluídos e paginação.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
-- `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
+- `src/services/transacoesService.js`: leitura das transações por usuário e intervalo e consulta compartilhada dos saldos iniciais.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
-- `src/services/objetivosService.js`: período mensal, cálculo dos aportes/pagamentos e mensagens de erro.
+- `src/services/objetivosService.js`: cálculos mensais, posição global dos objetivos e mensagens de erro.
 - `src/index.css`: estilos gerais; os componentes mantêm seus próprios arquivos CSS.
 - `*.test.js`: testes próximos aos arquivos que verificam.
 - `AGENTS.md`: orientações de organização, escrita e validação para assistentes de código.
@@ -524,6 +571,12 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   e consistência entre os dois gráficos durante atualizações, filtros e troca de mês.
 - Comparação mensal dos objetivos com diferença em centavos, percentual positivo ou
   negativo, previsão zero, cores estáveis, controles de barras e consultas compartilhadas.
+- Planejamento global com saldo atual, meta global, bens sem previsão mensal, dívidas,
+  cadastros excluídos, centavos, metas zeradas ou superadas e valores inválidos.
+- Independência do mês e dos erros mensais, atualização dos cadastros compartilhados,
+  filtro de concluídos, paginação, nova tentativa e isolamento entre usuários no global.
+- Quitação pela origem da dívida, com pagamento parcial, quitação completa, aumento
+  do saldo devedor, origem ausente/excluída/duplicada e recuperação da consulta de criação.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -583,8 +636,14 @@ atualização de previsão, mais de 12 objetivos, filtro, meta zero e meta super
 No segundo gráfico, confira os mesmos totais do primeiro e o percentual realizado/previsto.
 Trocar o filtro ou a página de objetivos não deve alterar o resumo. No terceiro gráfico,
 compare os totais com os dois primeiros e confira a diferença realizado menos previsto,
-o mês no eixo horizontal e os controles de cada barra. Os três gráficos globais
-demonstrativos ainda não devem ser usados para conferir esses totais.
+o mês no eixo horizontal e os controles de cada barra.
+
+No quarto gráfico, compare os saldos atuais e as metas globais com os cadastros do
+aplicativo. Confira bens sem previsão mensal, dívidas negativas, metas zeradas ou
+superadas e exclusões. Nas dívidas, compare o percentual quitado com o saldo inicial
+de criação e o saldo devedor atual. Trocar o mês não deve alterar a posição global; filtro e
+paginação não devem mudar os totais. Os dois últimos gráficos globais ainda são
+demonstrativos e não devem ser usados para conferir esses valores.
 
 ## Publicação
 
@@ -601,4 +660,4 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal
-e dos três gráficos mensais de Objetivos também no endereço publicado.
+e dos quatro gráficos integrados de Objetivos também no endereço publicado.

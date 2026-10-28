@@ -1,8 +1,92 @@
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
 
 const outubro = new Date(2026, 9, 1);
 const data = new Date(2026, 9, 15, 12).toISOString();
 const aporte = (amount, outros = {}) => ({ date: data, amount, outgoingType: "account", incomingType: "investment", inID: "a", ...outros });
+
+test("planejamento global usa a posição atual e a meta global sem misturar previsão ou aportes mensais", () => {
+    const investimentos = Object.freeze([
+        Object.freeze({ id: "a", nome: "Reserva", objective: "Investimento", current: 5000, montante: 20000, goal: 500, aporte: 9999, goalHistory: [{ date: "inválida", goal: -1 }], order: 1 }),
+        Object.freeze({ id: "b", nome: " Carro 2 ", objective: "Bem", current: "40000", montante: "50000", goal: 0, order: 0 }),
+        Object.freeze({ id: "c", nome: "Empréstimo", objective: "Dívida", current: -3000, montante: 0, goal: 100 }),
+    ]);
+    expect(calcularPlanejamentoGlobal(investimentos)).toEqual({
+        itens: [
+            { id: "b", nome: "Carro 2", atual: 40000, desejado: 50000, divida: false, percentual: 80, concluido: false },
+            { id: "a", nome: "Reserva", atual: 5000, desejado: 20000, divida: false, percentual: 25, concluido: false },
+            { id: "c", nome: "Empréstimo", atual: -3000, desejado: 0, divida: true, percentual: null, concluido: false },
+        ],
+        totalAtual: 42000, totalDesejado: 70000, diferenca: -28000, semDados: false,
+    });
+});
+
+test("objetivos globais preservam ausência de meta, saldos zero, metas superadas e dívidas quitadas", () => {
+    const resultado = calcularPlanejamentoGlobal([
+        { id: "a", current: 150, montante: 100, nome: "Superado" },
+        { id: "b", current: -50, montante: 100, nome: "Saldo negativo" },
+        { id: "c", current: 0, nome: "Sem meta" },
+        { id: "d", current: 0, montante: 0, nome: "Quitada", objective: "Dívida" },
+        { id: "e", current: 1, montante: 1000, nome: "Crédito", objective: "Dívida" },
+        { id: "f", current: 0, montante: 100, nome: "Ainda sem saldo" },
+    ]);
+    expect(resultado.itens.find(item => item.id === "a")).toMatchObject({ percentual: 150, concluido: true });
+    expect(resultado.itens.find(item => item.id === "b")).toMatchObject({ percentual: -50, concluido: false });
+    expect(resultado.itens.find(item => item.id === "c")).toMatchObject({ percentual: null, concluido: false });
+    expect(resultado.itens.find(item => item.id === "d")).toMatchObject({ percentual: null, concluido: true });
+    expect(resultado.itens.find(item => item.id === "e")).toMatchObject({ desejado: 0, percentual: null, concluido: true });
+    expect(resultado.itens.find(item => item.id === "f")).toMatchObject({ percentual: 0, concluido: false });
+    expect(resultado.itens).toHaveLength(6);
+});
+
+test("global exclui cadastros removidos, preserva IDs iguais em nome e soma em centavos", () => {
+    const resultado = calcularPlanejamentoGlobal([
+        { id: "z", nome: "Mesmo nome", current: 0.1, montante: 0.2 },
+        { id: "a", nome: "Mesmo nome", current: 0.2, montante: 0.3 },
+        { id: "removido", isDeleted: true, current: "inválido", montante: -1 },
+    ]);
+    expect(resultado).toMatchObject({ totalAtual: 0.3, totalDesejado: 0.5, diferenca: -0.2 });
+    expect(resultado.itens.map(item => item.id)).toEqual(["a", "z"]);
+    expect(calcularPlanejamentoGlobal([{ id: "a", current: 0, nome: " " }]).itens[0].nome).toBe("Objetivo sem nome");
+    expect(calcularPlanejamentoGlobal([{ id: "a", isDeleted: true }])).toEqual({ itens: [], totalAtual: 0, totalDesejado: 0, diferenca: 0, semDados: true });
+});
+
+test.each([undefined, null, "", " ", "inválido", true, [], {}, Infinity, NaN, Number.MAX_SAFE_INTEGER])("saldo global inválido %p não vira zero", (current) => {
+    expect(() => calcularPlanejamentoGlobal([{ id: "a", current, montante: 100 }])).toThrow("saldo ou meta global inválidos");
+});
+
+test.each([-1, -0.001, "inválido", "", true, Infinity])("meta global inválida %p gera erro identificável", (montante) => {
+    expect(() => calcularPlanejamentoGlobal([{ id: "a", current: 10, montante }])).toThrow(expect.objectContaining({ code: "app/objetivo-invalido" }));
+    expect(obterMensagemErroObjetivos({ code: "app/objetivo-invalido" })).toContain("saldo ou meta global inválidos");
+});
+
+const origemDivida = (outros = {}) => ({ inID: "d", outgoingType: "create", incomingType: "investment", amount: -1000, date: "2020-01-01T12:00:00.000Z", ...outros });
+
+test.each([[-1000, 0], [-750, 25], [0, 100], [100, 100], [-1200, -20]])("quitação usa valor original da dívida com saldo %s", (current, percentual) => {
+    const resultado = calcularPlanejamentoGlobal([{ id: "d", objective: "Dívida", current, montante: 0, goal: 50, aporte: 999 }], [origemDivida()]);
+    expect(resultado.itens[0]).toMatchObject({ atual: current, desejado: 0, divida: true, percentual, concluido: current >= 0 });
+    expect(resultado.totalAtual).toBe(current);
+});
+
+test("base da dívida ignora outros objetivos, exclusões e movimentos comuns, sem vincular pelo nome", () => {
+    const investimento = { id: "d", nome: "Dívida", objective: "Dívida", current: -750 };
+    const ignoradas = [
+        origemDivida({ isDeleted: true }), origemDivida({ inID: "outro" }), origemDivida({ inID: "", in: "Dívida" }),
+        origemDivida({ incomingType: "account" }), origemDivida({ outgoingType: "account", amount: 250 }),
+    ];
+    expect(calcularPlanejamentoGlobal([investimento], ignoradas).itens[0].percentual).toBeNull();
+    expect(calcularPlanejamentoGlobal([investimento], [...ignoradas, origemDivida()]).itens[0].percentual).toBe(25);
+    expect(calcularPlanejamentoGlobal([investimento], [origemDivida(), origemDivida()]).itens[0].percentual).toBeNull();
+    expect(calcularPlanejamentoGlobal([investimento], [origemDivida({ amount: 0 })]).itens[0].percentual).toBeNull();
+    expect(calcularPlanejamentoGlobal([investimento], [origemDivida({ amount: 1000 })]).itens[0].percentual).toBeNull();
+});
+
+test("valores originais inválidos identificam a fonte para nova tentativa sem afetar outros objetivos", () => {
+    const origens = [origemDivida({ amount: "inválido" })];
+    expect(() => calcularPlanejamentoGlobal([{ id: "d", objective: "Dívida", current: -100 }], origens))
+        .toThrow(expect.objectContaining({ code: "app/origem-divida-invalida" }));
+    expect(obterMensagemErroObjetivos({ code: "app/origem-divida-invalida" })).toContain("criação de dívidas");
+    expect(() => calcularPlanejamentoGlobal([{ id: "d", objective: "Investimento", current: 100, montante: 200 }], origens)).not.toThrow();
+});
 
 test("comparação mensal reutiliza totais e diferença do planejamento com o mês selecionado", () => {
     const planejamento = Object.freeze(calcularPlanejamentoMensal([aporte(0.1), aporte(0.2)], [{ id: "a", goal: 0.2 }], outubro));

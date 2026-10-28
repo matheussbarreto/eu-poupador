@@ -2,20 +2,20 @@ import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import Objetivos from "./Objetivos";
 import { observarInvestimentos } from "../services/investimentosService";
-import { observarTransacoes } from "../services/transacoesService";
+import { observarTransacoes, observarSaldosIniciais } from "../services/transacoesService";
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
-jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn() }));
+jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn(), observarSaldosIniciais: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar?.dataLabels.value.formatter(), categorias: props.options.xaxis?.categories })}</div>);
 jest.mock("../Componentes/AcumulosAmortizacoesCompromissoGlobal", () => () => null);
-jest.mock("../Componentes/AcumulosAmortizacoesPlanejamentoGlobal", () => () => null);
 jest.mock("../Componentes/AtualDesesjadoPlanejamentoGlobal", () => () => null);
 
 let container;
 let root;
 let consultas;
 let cadastros;
+let origens;
 const investimentos = [{ id: "a", nome: "Reserva", goalHistory: [{ date: "2026-8", goal: 200 }, { date: "2026-9", goal: 100 }] }];
 const transacoes = (amount, mes = 9) => [{ inID: "a", date: new Date(2026, mes, 15, 12).toISOString(), amount, outgoingType: "account", incomingType: "investment" }];
 const painel = () => container.querySelector('.aportes-pagamentos-planejamento-mensal');
@@ -24,6 +24,130 @@ const compromisso = () => container.querySelector('.aportes-pagamentos-compromis
 const graficoCompromisso = () => compromisso().querySelector('[data-testid="grafico"]');
 const comparacao = () => container.querySelector('.realizado-previsto-planejamento-mensal');
 const graficoComparacao = () => comparacao().querySelector('[data-testid="grafico"]');
+const painelGlobal = () => container.querySelector('.acumulo-amortizacoes-planejamento-global');
+const graficosGlobais = () => [...painelGlobal().querySelectorAll('[data-testid="grafico"]')].map((elemento) => JSON.parse(elemento.textContent));
+
+test("dívidas compartilham origens entre meses e atualizam a quitação sem afetar o planejamento mensal", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(50)));
+    await act(async () => cadastros[0].receber([{ id: "a", nome: "Dívida", objective: "Dívida", current: -750, goal: 100 }]));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(graficos()).toHaveLength(1);
+    await act(async () => origens[0].receber([{ inID: "a", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    expect(graficosGlobais()).toEqual([{ series: [25], percentual: "25%" }]);
+    expect(painelGlobal().querySelector('[aria-label="Dívida: 25% da dívida quitada"]')).not.toBeNull();
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficosGlobais()[0].percentual).toBe("25%");
+    expect(origens).toHaveLength(1);
+    expect(cadastros).toHaveLength(1);
+    await act(async () => cadastros[0].receber([{ id: "a", objective: "Dívida", current: -500, goal: 100 }]));
+    expect(graficosGlobais()[0].percentual).toBe("50%");
+    await act(async () => origens[0].receber([]));
+    expect(graficosGlobais()[0].percentual).toBe("—");
+});
+
+test("erros nas origens repetem apenas essa consulta e não bloqueiam gráficos mensais", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(50)));
+    await act(async () => cadastros[0].receber([{ id: "a", objective: "Dívida", current: -750, goal: 100 }]));
+    await act(async () => origens[0].falhar({ code: "unavailable" }));
+    expect(painelGlobal().querySelector('[role="alert"]')).not.toBeNull();
+    expect(graficos()).toHaveLength(1);
+    await act(async () => painelGlobal().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    expect(cadastros).toHaveLength(1);
+    expect(origens[0].cancelar).toHaveBeenCalledTimes(1);
+    await act(async () => origens[1].receber([{ inID: "a", outgoingType: "create", incomingType: "investment", amount: "inválido" }]));
+    expect(painelGlobal().querySelector('[role="alert"]').textContent).toContain("criação de dívidas");
+    await act(async () => painelGlobal().querySelector('button').click());
+    await act(async () => origens[2].receber([{ inID: "a", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    expect(graficosGlobais()[0].percentual).toBe("25%");
+    expect(cadastros).toHaveLength(1);
+    expect(consultas).toHaveLength(1);
+});
+
+test("origens antigas são ignoradas ao trocar de conta e falha inicial pode ser recuperada", async () => {
+    observarSaldosIniciais.mockImplementationOnce(() => { throw { code: "unavailable" }; });
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber([{ id: "a", objective: "Dívida", current: -750 }]));
+    await act(async () => painelGlobal().querySelector('button').click());
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    await act(async () => cadastros[1].receber([{ id: "a", objective: "Dívida", current: -250 }]));
+    await act(async () => origens[0].receber([{ inID: "a", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    await act(async () => origens[0].falhar({ code: "unavailable" }));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(painelGlobal().querySelector('[role="alert"]')).toBeNull();
+    expect(origens[0].cancelar).toHaveBeenCalledTimes(1);
+    await act(async () => origens[1].receber([{ inID: "a", outgoingType: "create", incomingType: "investment", amount: -500 }]));
+    expect(graficosGlobais()[0].percentual).toBe("50%");
+});
+
+test("global reutiliza cadastros e permanece disponível durante troca de mês e falha nas transações", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber([{ id: "a", current: 50, montante: 100, nome: "Reserva", goal: 10 }]));
+    expect(graficosGlobais()).toEqual([{ series: [50], percentual: "50%" }]);
+    expect(graficos()).toHaveLength(0);
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => painelGlobal().querySelector('input').click());
+    const resumo = painelGlobal().textContent;
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(painelGlobal().textContent).toBe(resumo);
+    expect(painelGlobal().querySelector('input').checked).toBe(true);
+    await act(async () => consultas[1].falhar({ code: "unavailable" }));
+    expect(painelGlobal().textContent).toBe(resumo);
+    expect(painel().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => cadastros[0].receber([{ id: "a", current: 150, montante: 100, nome: "Reserva", goal: 10 }]));
+    expect(painelGlobal().textContent).toContain("filtro selecionado");
+    await act(async () => painelGlobal().querySelector('input').click());
+    expect(graficosGlobais()).toEqual([{ series: [100], percentual: "150%" }]);
+    expect(cadastros).toHaveLength(1);
+    expect(consultas).toHaveLength(2);
+});
+
+test("global isola erros de cálculo mensais e globais e repete somente cadastros", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(50)));
+    await act(async () => cadastros[0].receber([{ id: "a", current: 50, montante: 100, goal: -1 }]));
+    expect(graficosGlobais()).toHaveLength(1);
+    expect(painel().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => cadastros[0].receber([{ id: "a", current: "inválido", goal: 100 }]));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(painelGlobal().querySelector('[role="alert"]').textContent).toContain("saldo ou meta global inválidos");
+    expect(graficos()).toHaveLength(1);
+    await act(async () => painelGlobal().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    expect(cadastros).toHaveLength(2);
+    expect(cadastros[0].cancelar).toHaveBeenCalledTimes(1);
+    await act(async () => cadastros[1].falhar({ code: "permission-denied" }));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(painelGlobal().querySelector('[role="alert"]').textContent).toContain("assinatura");
+    await act(async () => painelGlobal().querySelector('button').click());
+    await act(async () => cadastros[2].receber([{ id: "a", current: 50, montante: 100, goal: 100 }]));
+    expect(graficosGlobais()).toHaveLength(1);
+    expect(graficos()).toHaveLength(1);
+    expect(consultas).toHaveLength(1);
+});
+
+test("global oculta dados da conta anterior, ignora callbacks antigos e reinicia seus controles", async () => {
+    const muitos = Array.from({ length: 13 }, (_, indice) => ({ id: String(indice), nome: `Objetivo ${indice}`, current: 10, montante: 100 }));
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber(muitos));
+    await act(async () => painelGlobal().querySelector('input').click());
+    await act(async () => painelGlobal().querySelector('[aria-label="Próxima página de objetivos globais"]').click());
+    expect(graficosGlobais()).toHaveLength(1);
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(painelGlobal().textContent).not.toContain("Objetivo 12");
+    await act(async () => cadastros[0].receber(muitos));
+    await act(async () => cadastros[0].falhar({ code: "permission-denied" }));
+    expect(painelGlobal().querySelector('[role="alert"]')).toBeNull();
+    await act(async () => cadastros[1].receber(muitos));
+    expect(graficosGlobais()).toHaveLength(12);
+    expect(painelGlobal().querySelector('input').checked).toBe(false);
+    await act(async () => cadastros[1].receber([]));
+    expect(graficosGlobais()).toHaveLength(0);
+    expect(painelGlobal().textContent).toContain("Não há objetivos cadastrados.");
+});
 
 test("comparação mensal compartilha totais e atualizações sem novas consultas ou efeito dos filtros", async () => {
     await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
@@ -146,6 +270,12 @@ beforeEach(() => {
     jest.setSystemTime(new Date(2026, 9, 27, 12));
     consultas = [];
     cadastros = [];
+    origens = [];
+    observarSaldosIniciais.mockImplementation((usuarioId, receber, falhar) => {
+        const cancelar = jest.fn();
+        origens.push({ usuarioId, receber, falhar, cancelar });
+        return cancelar;
+    });
     observarInvestimentos.mockImplementation((usuarioId, receber, falhar) => {
         const cancelar = jest.fn();
         cadastros.push({ usuarioId, receber, falhar, cancelar });
@@ -277,4 +407,6 @@ test("StrictMode encerra as consultas antigas e desmontagem cancela as duas font
     await act(async () => root.render(null));
     expect(consultas[1].cancelar).toHaveBeenCalledTimes(1);
     expect(cadastros[1].cancelar).toHaveBeenCalledTimes(1);
+    expect(origens[0].cancelar).toHaveBeenCalledTimes(1);
+    expect(origens[1].cancelar).toHaveBeenCalledTimes(1);
 });

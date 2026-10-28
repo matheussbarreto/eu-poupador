@@ -1,6 +1,6 @@
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { obterFirebase } from "./firebase";
-import { observarTransacoes } from "./transacoesService";
+import { observarTransacoes, observarSaldosIniciais } from "./transacoesService";
 
 jest.mock("firebase/firestore", () => ({
     collection: jest.fn(),
@@ -11,6 +11,39 @@ jest.mock("firebase/firestore", () => ({
 jest.mock("./firebase", () => ({ obterFirebase: jest.fn() }));
 
 const intervalo = { inicio: new Date(2026, 9, 1), fim: new Date(2026, 10, 1) };
+
+test("saldos iniciais usam uma única consulta de criação por usuário, independente de período", () => {
+    collection.mockReturnValue("transacoes");
+    where.mockImplementation((...args) => args);
+    query.mockReturnValue("criacao");
+    const cancelar = jest.fn();
+    onSnapshot.mockReturnValue(cancelar);
+    const receber = jest.fn();
+    const falhar = jest.fn();
+    expect(observarSaldosIniciais("usuario-a", receber, falhar)).toBe(cancelar);
+    expect(collection).toHaveBeenCalledWith(expect.anything(), "users", "usuario-a", "transactions");
+    expect(query).toHaveBeenCalledWith("transacoes", ["outgoingType", "==", "create"]);
+    expect(where).toHaveBeenCalledTimes(1);
+    const [, atualizar, erro] = onSnapshot.mock.calls[0];
+    atualizar({ docs: [{ id: "origem", data: () => ({ id: "antigo", amount: -1000, inID: "d", isDeleted: true }) }] });
+    expect(receber).toHaveBeenCalledWith([{ id: "origem", amount: -1000, inID: "d", isDeleted: true }]);
+    atualizar({ docs: [] });
+    expect(receber).toHaveBeenLastCalledWith([]);
+    erro({ code: "unavailable" });
+    expect(falhar).toHaveBeenCalledWith({ code: "unavailable" });
+    cancelar();
+    expect(cancelar).toHaveBeenCalledTimes(1);
+});
+
+test("saldos iniciais exigem sessão e encaminham falhas de leitura", () => {
+    expect(() => observarSaldosIniciais("", jest.fn(), jest.fn())).toThrow("entrar");
+    expect(onSnapshot).not.toHaveBeenCalled();
+    const falhar = jest.fn();
+    observarSaldosIniciais("usuario-a", jest.fn(), falhar);
+    const erro = new Error("leitura inválida");
+    onSnapshot.mock.calls[0][1]({ docs: [{ data: () => { throw erro; } }] });
+    expect(falhar).toHaveBeenCalledWith(erro);
+});
 
 beforeEach(() => {
     jest.resetAllMocks();
