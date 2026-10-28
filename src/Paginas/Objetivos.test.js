@@ -8,7 +8,6 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn(), observarSaldosIniciais: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar?.dataLabels.value.formatter(), categorias: props.options.xaxis?.categories })}</div>);
-jest.mock("../Componentes/AcumulosAmortizacoesCompromissoGlobal", () => () => null);
 jest.mock("../Componentes/AtualDesesjadoPlanejamentoGlobal", () => () => null);
 
 let container;
@@ -26,6 +25,76 @@ const comparacao = () => container.querySelector('.realizado-previsto-planejamen
 const graficoComparacao = () => comparacao().querySelector('[data-testid="grafico"]');
 const painelGlobal = () => container.querySelector('.acumulo-amortizacoes-planejamento-global');
 const graficosGlobais = () => [...painelGlobal().querySelectorAll('[data-testid="grafico"]')].map((elemento) => JSON.parse(elemento.textContent));
+const compromissoGlobal = () => container.querySelector('.acumulos-amortizacoes-compromisso-global');
+const graficoCompromissoGlobal = () => compromissoGlobal().querySelector('[data-testid="grafico"]');
+
+test("compromisso global compartilha totais líquidos, atualizações e consultas sem depender de filtro ou mês", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber(Array.from({ length: 13 }, (_, indice) => ({ id: String(indice), current: indice === 0 ? 150 : 50, montante: 100 }))));
+    expect(JSON.parse(graficoCompromissoGlobal().textContent).percentual).toBe("57,7%");
+    const resumo = compromissoGlobal().textContent;
+    expect(compromissoGlobal().querySelector('.total-atual strong').textContent).toBe(painelGlobal().querySelector('.legenda-serie span:last-child').textContent);
+    await act(async () => painelGlobal().querySelector('[aria-label="Próxima página de objetivos globais"]').click());
+    await act(async () => painelGlobal().querySelector('input').click());
+    expect(compromissoGlobal().textContent).toBe(resumo);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(compromissoGlobal().textContent).toBe(resumo);
+    await act(async () => consultas[1].falhar({ code: "unavailable" }));
+    expect(compromissoGlobal().textContent).toBe(resumo);
+    await act(async () => cadastros[0].receber([{ id: "a", current: 50, montante: 100 }, { id: "d", current: -75, objective: "Dívida" }]));
+    expect(graficoCompromissoGlobal()).toBeNull();
+    await act(async () => origens[0].receber([]));
+    expect(JSON.parse(graficoCompromissoGlobal().textContent)).toEqual({ series: [0], percentual: "-25%" });
+    expect(compromissoGlobal().querySelector('.total-atual strong').textContent).toBe(painelGlobal().querySelector('.legenda-serie span:last-child').textContent);
+    expect(cadastros).toHaveLength(1);
+    expect(origens).toHaveLength(1);
+    expect(consultas).toHaveLength(2);
+});
+
+test("nova tentativa pelo compromisso global recupera somente cadastros ou origens com erro", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].falhar({ code: "permission-denied" }));
+    expect(graficoCompromissoGlobal()).toBeNull();
+    expect(compromissoGlobal().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => compromissoGlobal().querySelector('button').click());
+    expect(cadastros[0].cancelar).toHaveBeenCalledTimes(1);
+    await act(async () => cadastros[1].receber([{ id: "d", current: -750, objective: "Dívida" }]));
+    await act(async () => origens[0].falhar({ code: "unavailable" }));
+    await act(async () => compromissoGlobal().querySelector('button').click());
+    expect(cadastros).toHaveLength(2);
+    expect(consultas).toHaveLength(1);
+    expect(origens[0].cancelar).toHaveBeenCalledTimes(1);
+    await act(async () => origens[1].receber([{ inID: "d", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    expect(JSON.parse(graficoCompromissoGlobal().textContent).percentual).toBe("—");
+    expect(compromissoGlobal().querySelector('.total-atual').textContent).toContain("750,00");
+    await act(async () => cadastros[1].receber([{ id: "d", current: "inválido", objective: "Dívida" }]));
+    expect(graficoCompromissoGlobal()).toBeNull();
+    expect(compromissoGlobal().querySelector('[role="alert"]').textContent).toContain("saldo ou meta global");
+    await act(async () => compromissoGlobal().querySelector('button').click());
+    expect(origens).toHaveLength(2);
+    await act(async () => cadastros[2].receber([{ id: "a", current: 100, montante: 200 }]));
+    expect(JSON.parse(graficoCompromissoGlobal().textContent).percentual).toBe("50%");
+});
+
+test("compromisso global isola contas, ignora callbacks antigos e trata ausência de cadastros", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber([{ id: "a", current: 50, montante: 100 }]));
+    expect(graficoCompromissoGlobal()).not.toBeNull();
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    expect(graficoCompromissoGlobal()).toBeNull();
+    expect(compromissoGlobal().querySelector('.total-atual')).toBeNull();
+    await act(async () => cadastros[0].receber([{ id: "a", current: 999, montante: 100 }]));
+    await act(async () => origens[0].falhar({ code: "unavailable" }));
+    expect(graficoCompromissoGlobal()).toBeNull();
+    expect(compromissoGlobal().querySelector('[role="alert"]')).toBeNull();
+    await act(async () => cadastros[1].receber([]));
+    expect(compromissoGlobal().textContent).toContain("Não há objetivos cadastrados.");
+    await act(async () => cadastros[1].receber([{ id: "b", current: 0, montante: 100 }]));
+    expect(JSON.parse(graficoCompromissoGlobal().textContent).percentual).toBe("0%");
+    expect(cadastros).toHaveLength(2);
+    expect(origens).toHaveLength(2);
+    expect(consultas).toHaveLength(2);
+});
 
 test("dívidas compartilham origens entre meses e atualizam a quitação sem afetar o planejamento mensal", async () => {
     await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));

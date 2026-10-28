@@ -142,6 +142,14 @@ export function calcularPlanejamentoGlobal(investimentos, saldosIniciais = []) {
     };
 }
 
+export function calcularCompromissoGlobal(planejamentoGlobal) {
+    const { totalAtual, totalDesejado, semDados } = planejamentoGlobal;
+    return {
+        totalAtual, totalDesejado, semDados,
+        percentual: totalDesejado === 0 ? null : totalAtual / totalDesejado * 100,
+    };
+}
+
 export function obterMensagemErroObjetivos(erro) {
     switch (erro?.code) {
         case "permission-denied":

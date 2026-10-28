@@ -1,8 +1,32 @@
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
 
 const outubro = new Date(2026, 9, 1);
 const data = new Date(2026, 9, 15, 12).toISOString();
 const aporte = (amount, outros = {}) => ({ date: data, amount, outgoingType: "account", incomingType: "investment", inID: "a", ...outros });
+
+test("compromisso global reutiliza os totais líquidos, incluindo dívidas e bens sem meta", () => {
+    const planejamento = Object.freeze(calcularPlanejamentoGlobal([
+        { id: "a", current: 100, montante: 100, objective: "Investimento" },
+        { id: "b", current: 0, montante: 300, objective: "Bem" },
+        { id: "c", current: 500, montante: 0, objective: "Bem" },
+        { id: "d", current: -750, montante: 0, objective: "Dívida" },
+        { id: "excluido", current: 9999, montante: 9999, isDeleted: true },
+    ], [origemDivida()]));
+    expect(calcularCompromissoGlobal(planejamento)).toEqual({ totalAtual: -150, totalDesejado: 400, percentual: -37.5, semDados: false });
+    expect(planejamento.itens.find(item => item.id === "d").percentual).toBe(25);
+    // A quitação individual não substitui o saldo da dívida no total líquido.
+    expect(planejamento.totalAtual).toBe(-150);
+});
+
+test.each([
+    [0, 100, false, 0], [250, 100, false, 250], [-50, 100, false, -50],
+    [100, 0, false, null], [-100, 0, false, null], [0, 0, true, null], [0.3, 0.2, false, 150],
+])("compromisso global trata atual %s e desejado %s", (totalAtual, totalDesejado, semDados, percentual) => {
+    const resultado = calcularCompromissoGlobal(Object.freeze({ totalAtual, totalDesejado, semDados }));
+    expect(resultado).toMatchObject({ totalAtual, totalDesejado, semDados });
+    if (percentual === null) expect(resultado.percentual).toBeNull();
+    else expect(resultado.percentual).toBeCloseTo(percentual);
+});
 
 test("planejamento global usa a posição atual e a meta global sem misturar previsão ou aportes mensais", () => {
     const investimentos = Object.freeze([

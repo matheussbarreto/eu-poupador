@@ -9,7 +9,7 @@ import TituloDaPagina from "../Componentes/TituloDaPagina";
 import MonthSelector from "../Componentes/MonthSelector";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarTransacoes, observarSaldosIniciais } from "../services/transacoesService";
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
 
 const Objetivos = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -117,6 +117,10 @@ const Objetivos = ({ usuarioId }) => {
         }
     }, [cadastros.investimentos, cadastros.erro, carregandoCadastros, origens.saldosIniciais, origens.erro, carregandoOrigens, temDividas]);
 
+    const compromissoGlobal = useMemo(() => planejamentoGlobal.dados
+        ? calcularCompromissoGlobal(planejamentoGlobal.dados)
+        : undefined, [planejamentoGlobal.dados]);
+
     const erroGlobal = (!carregandoCadastros && cadastros.erro) || (temDividas && !carregandoOrigens && origens.erro) || planejamentoGlobal.erro;
     const tentarNovamenteGlobal = () => {
         if (cadastros.erro || planejamentoGlobal.origemErro === "cadastros") setTentativaCadastros((valor) => valor + 1);
@@ -162,7 +166,12 @@ const Objetivos = ({ usuarioId }) => {
                 onTentarNovamente={tentarNovamenteGlobal}
             />
             <div className="container-left">
-                <AcumulosAmortizacoesCompromissoGlobal />
+                <AcumulosAmortizacoesCompromissoGlobal
+                    dados={compromissoGlobal}
+                    carregando={!erroGlobal && (carregandoCadastros || (temDividas && carregandoOrigens))}
+                    erro={erroGlobal}
+                    onTentarNovamente={tentarNovamenteGlobal}
+                />
                 <AtualDesesjadoPlanejamentoGlobal />
             </div>
         </div>

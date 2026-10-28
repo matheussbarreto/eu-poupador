@@ -16,3 +16,20 @@
     text-align: center;
     color: var(--primary-color);
 }
+
+.acumulos-amortizacoes-compromisso-global .estado-compromisso-global {
+    min-height: 200px;
+}
+
+.acumulos-amortizacoes-compromisso-global .total-atual,
+.acumulos-amortizacoes-compromisso-global .total-desejado {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    overflow-wrap: anywhere;
+}
+
+.acumulos-amortizacoes-compromisso-global .total-desejado {
+    margin-top: 10px;
+    color: var(--tertiary-color);
+}

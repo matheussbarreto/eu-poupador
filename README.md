@@ -10,7 +10,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
-| Objetivos | `/objetivos` | Os três gráficos mensais e **Planejamento Global: Acúmulos e Amortizações** compartilham os dados do usuário no Firestore. Os outros dois gráficos globais ainda usam dados de demonstração. |
+| Objetivos | `/objetivos` | Os três gráficos mensais, **Planejamento Global: Acúmulos e Amortizações** e **Grau de Compromisso Global** compartilham os dados do usuário no Firestore. Apenas **Atual vs. Desejado** ainda usa dados de demonstração. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
@@ -393,6 +393,8 @@ reutilizam esses totais, sem novas consultas ou repetição da soma das transaç
 O planejamento global usa os mesmos cadastros, com cálculo e estados independentes
 das transações mensais. Quando há dívidas, também aguarda os registros de criação
 para calcular o percentual quitado. Os gráficos mensais não dependem dessa terceira fonte.
+O grau de compromisso global reutiliza os totais do planejamento global, sem consultar
+o Firebase novamente nem repetir a soma dos cadastros.
 
 ### Planejamento Mensal: Aportes e Pagamentos
 
@@ -500,12 +502,33 @@ Falhas de transações ou previsões mensais não bloqueiam este gráfico. A nov
 do gráfico global refaz a fonte afetada: cadastros ou saldos iniciais. Falhas dos saldos
 iniciais não bloqueiam os gráficos mensais nem objetivos globais sem dívidas.
 
+### Grau de Compromisso Global: Acúmulos e Amortizações
+
+`calcularCompromissoGlobal` recebe o planejamento global já calculado e usa
+**total atual líquido ÷ total desejado × 100**, conforme a definição desta página.
+Os valores Atual e Desejado são exatamente os mesmos do quarto gráfico.
+
+O saldo atual inclui dívidas com sinal negativo e bens sem meta. O desejado soma as
+metas globais dos investimentos e bens; dívidas mantêm meta de quitação em zero.
+O percentual global não é a média dos percentuais individuais nem a soma das parcelas
+quitadas das dívidas. Por exemplo, saldo líquido de -R$ 150 e metas de R$ 400 resultam
+em -37,5%, mesmo que alguma dívida já esteja parcialmente quitada.
+
+O texto preserva percentuais negativos e acima de 100%, com até uma casa decimal;
+somente o preenchimento circular é limitado entre 0 e 100%. Meta total zero exibe `—`
+e mantém os valores em reais. Meta positiva com saldo zero exibe `0%`. Sem cadastros
+ativos, o componente mostra a ausência de dados.
+
+Filtros e paginação do quarto gráfico não alteram o resumo. A troca de mês mantém
+a posição global. Carregamento, erros e nova tentativa são compartilhados com o
+planejamento global; a troca de usuário oculta imediatamente os valores anteriores.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
 - `src/Paginas/Login.js`: página e apresentação inicial.
 - `src/Paginas/BalancoMensal.js`: seleção de período, carregamento compartilhado e cálculo dos dados apresentados.
-- `src/Paginas/Objetivos.js`: consultas compartilhadas, três gráficos mensais e planejamento global por objetivo.
+- `src/Paginas/Objetivos.js`: consultas compartilhadas, três gráficos mensais, planejamento global por objetivo e grau de compromisso global.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -522,6 +545,7 @@ iniciais não bloqueiam os gráficos mensais nem objetivos globais sem dívidas.
 - `src/Componentes/AportesPagamentosCompromissoMensal/`: percentual e totais do compromisso mensal, derivados do planejamento.
 - `src/Componentes/RealizadoPrevistoPlanejamentoMensal/`: comparação mensal dos totais, diferença e controles de visibilidade das barras.
 - `src/Componentes/AcumulosAmortizacoesPlanejamentoGlobal/`: saldos e metas globais por objetivo, filtro de concluídos e paginação.
+- `src/Componentes/AcumulosAmortizacoesCompromissoGlobal/`: razão entre saldo líquido atual e metas globais, com os totais do planejamento.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo e consulta compartilhada dos saldos iniciais.
@@ -577,6 +601,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   filtro de concluídos, paginação, nova tentativa e isolamento entre usuários no global.
 - Quitação pela origem da dívida, com pagamento parcial, quitação completa, aumento
   do saldo devedor, origem ausente/excluída/duplicada e recuperação da consulta de criação.
+- Compromisso global pela razão dos totais líquidos, incluindo saldos negativos,
+  bens sem meta, metas zeradas ou superadas, filtros sem alterar o resumo e consultas compartilhadas.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -642,8 +668,10 @@ No quarto gráfico, compare os saldos atuais e as metas globais com os cadastros
 aplicativo. Confira bens sem previsão mensal, dívidas negativas, metas zeradas ou
 superadas e exclusões. Nas dívidas, compare o percentual quitado com o saldo inicial
 de criação e o saldo devedor atual. Trocar o mês não deve alterar a posição global; filtro e
-paginação não devem mudar os totais. Os dois últimos gráficos globais ainda são
-demonstrativos e não devem ser usados para conferir esses valores.
+paginação não devem mudar os totais. No quinto gráfico, confira os mesmos valores
+Atual e Desejado do quarto e a razão entre eles, incluindo saldo líquido negativo
+e meta total zero. Teste também a troca de conta e a nova tentativa após falha.
+Apenas o último gráfico global, Atual vs. Desejado, permanece demonstrativo.
 
 ## Publicação
 
@@ -660,4 +688,4 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal
-e dos quatro gráficos integrados de Objetivos também no endereço publicado.
+e dos cinco gráficos integrados de Objetivos também no endereço publicado.
