@@ -5,29 +5,21 @@
     gap: 10px;
 }
 
-.realizado-previsto-planejamento-mensal .legenda-serie:last-child {
+.realizado-previsto-planejamento-mensal .legenda-serie {
+    min-width: 0;
+    width: 100%;
+    gap: 8px;
+}
+
+.realizado-previsto-planejamento-mensal .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
+}
+
+.realizado-previsto-planejamento-mensal .diferenca-mensal {
     font-weight: bold;
 }
 
-/* 
-    .realizado-previsto-planejamento-mensal .legenda {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    
-    .realizado-previsto-planejamento-mensal .legenda-serie {
-        display: flex;
-        min-width: 220px;
-    }
-
-.realizado-previsto-planejamento-mensal .legenda-serie span {
-    flex: 1;
-    text-align: left;
+.realizado-previsto-planejamento-mensal .estado-realizado-previsto {
+    min-height: 200px;
 }
-
-.realizado-previsto-planejamento-mensal .legenda-serie span:last-child {
-    flex: 2;
-    text-align: right;
-} */

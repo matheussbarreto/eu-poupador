@@ -76,6 +76,16 @@ export function calcularCompromissoMensal(planejamentoMensal) {
     };
 }
 
+export function calcularRealizadoPrevistoMensal(planejamentoMensal, dataSelecionada) {
+    const { totalRealizado, totalPrevisto, diferenca, semDados } = planejamentoMensal;
+    const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    return {
+        categoria: `${meses[dataSelecionada.getMonth()]}/${dataSelecionada.getFullYear()}`,
+        realizado: totalRealizado, previsto: totalPrevisto, diferenca, semDados,
+        diferencaPercentual: totalPrevisto === 0 ? null : diferenca / totalPrevisto * 100,
+    };
+}
+
 export function obterMensagemErroObjetivos(erro) {
     switch (erro?.code) {
         case "permission-denied":

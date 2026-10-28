@@ -1,8 +1,25 @@
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
 
 const outubro = new Date(2026, 9, 1);
 const data = new Date(2026, 9, 15, 12).toISOString();
 const aporte = (amount, outros = {}) => ({ date: data, amount, outgoingType: "account", incomingType: "investment", inID: "a", ...outros });
+
+test("comparação mensal reutiliza totais e diferença do planejamento com o mês selecionado", () => {
+    const planejamento = Object.freeze(calcularPlanejamentoMensal([aporte(0.1), aporte(0.2)], [{ id: "a", goal: 0.2 }], outubro));
+    const resultado = calcularRealizadoPrevistoMensal(planejamento, outubro);
+    expect(resultado).toEqual({ categoria: "Out/2026", realizado: 0.3, previsto: 0.2, diferenca: 0.1, diferencaPercentual: 50, semDados: false });
+    expect(calcularCompromissoMensal(planejamento).totalRealizado).toBe(resultado.realizado);
+    expect(calcularCompromissoMensal(planejamento).totalPrevisto).toBe(resultado.previsto);
+    expect(calcularRealizadoPrevistoMensal(planejamento, new Date(2027, 0, 1)).categoria).toBe("Jan/2027");
+});
+
+test.each([
+    [50, 100, -50, -50, false], [0, 100, -100, -100, false],
+    [50, 0, 50, null, false], [0, 0, 0, null, true], [100, 100, 0, 0, false],
+])("comparação de realizado %s e previsto %s trata a diferença e previsão zero", (totalRealizado, totalPrevisto, diferenca, diferencaPercentual, semDados) => {
+    expect(calcularRealizadoPrevistoMensal({ totalRealizado, totalPrevisto, diferenca, semDados }, outubro))
+        .toEqual({ categoria: "Out/2026", realizado: totalRealizado, previsto: totalPrevisto, diferenca, diferencaPercentual, semDados });
+});
 
 test("compromisso mensal usa a razão dos totais, não a média dos percentuais dos objetivos", () => {
     const planejamento = calcularPlanejamentoMensal([aporte(100)], [{ id: "a", goal: 100 }, { id: "b", goal: 300 }], outubro);

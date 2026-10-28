@@ -10,7 +10,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | --- | --- | --- |
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
-| Objetivos | `/objetivos` | Os dois primeiros gráficos, **Planejamento Mensal: Aportes e Pagamentos** e **Grau de Compromisso Mensal**, compartilham os dados do usuário no Firestore. Os outros quatro gráficos ainda usam dados de demonstração. |
+| Objetivos | `/objetivos` | Os três gráficos mensais, **Aportes e Pagamentos**, **Grau de Compromisso Mensal** e **Realizado vs. Previsto**, compartilham os dados do usuário no Firestore. Os três gráficos globais ainda usam dados de demonstração. |
 | Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
@@ -385,8 +385,8 @@ e respostas antigas são ignoradas. Falhas permitem repetir apenas a fonte afeta
 
 `objetivosService.js` calcula o planejamento mensal sem consultar o Firebase. A página
 reutiliza esse resultado com `useMemo` e entrega os dados aos componentes por props.
-A base contém os valores por objetivo e os totais. O segundo gráfico reutiliza esses
-totais, sem novas consultas ou repetição da soma das transações.
+A base contém os valores por objetivo e os totais. O segundo e o terceiro gráficos
+reutilizam esses totais, sem novas consultas ou repetição da soma das transações.
 
 ### Planejamento Mensal: Aportes e Pagamentos
 
@@ -421,8 +421,8 @@ Ao trocar de mês ou conta, os controles são reiniciados; quando a lista diminu
 atual é ajustada para continuar válida.
 
 O componente trata carregamento, falha com nova tentativa, mês vazio e filtro sem
-resultados. Nesta etapa, os dois primeiros gráficos acompanham o seletor de mês;
-os outros quatro permanecem demonstrativos.
+resultados. Os três gráficos mensais acompanham o seletor de mês;
+os três gráficos globais permanecem demonstrativos.
 
 ### Grau de Compromisso Mensal: Aportes e Pagamentos
 
@@ -437,12 +437,29 @@ o texto mantém o percentual real e apenas o preenchimento circular fica limitad
 Mês sem realizado e previsto exibe mensagem de ausência de dados. Carregamento,
 erros e nova tentativa são compartilhados com o primeiro gráfico.
 
+### Planejamento Mensal: Realizado vs. Previsto
+
+`calcularRealizadoPrevistoMensal` reutiliza os totais e a diferença do planejamento
+mensal. O gráfico apresenta Realizado em azul e Previsto em cinza, com o mês selecionado
+no eixo horizontal. A diferença é **realizado menos previsto**; seu percentual é
+**diferença ÷ previsto × 100**, exibido com duas casas decimais. Um valor negativo
+indica que parte do planejamento ainda não foi realizada. Previsão zero exibe `—`.
+
+Os controles da legenda permitem ocultar e reexibir cada barra, preservando as cores,
+os totais e a diferença. Se ambas estiverem ocultas, aparece uma orientação para
+selecionar uma série. Ao trocar de mês ou conta, ambas voltam a ficar visíveis.
+Filtro e paginação do primeiro gráfico não alteram os totais desta comparação.
+
+Carregamento, erros e nova tentativa são compartilhados com os outros gráficos
+mensais. Um mês sem aportes e previsões exibe mensagem de ausência de dados;
+um mês com apenas previsão continua mostrando a comparação.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
 - `src/Paginas/Login.js`: página e apresentação inicial.
 - `src/Paginas/BalancoMensal.js`: seleção de período, carregamento compartilhado e cálculo dos dados apresentados.
-- `src/Paginas/Objetivos.js`: consultas compartilhadas de objetivos e transações do mês, com os dois primeiros gráficos integrados.
+- `src/Paginas/Objetivos.js`: consultas compartilhadas de objetivos e transações do mês, com os três gráficos mensais integrados.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -457,6 +474,7 @@ erros e nova tentativa são compartilhados com o primeiro gráfico.
 - `src/Componentes/DespesasPorTipoGastoPrevisto/`: comparação dos gastos e previsões mensais por tipo de despesa.
 - `src/Componentes/AportesPagamentosPlanejamentoMensal/`: realizado e previsto mensal por objetivo, filtro e paginação.
 - `src/Componentes/AportesPagamentosCompromissoMensal/`: percentual e totais do compromisso mensal, derivados do planejamento.
+- `src/Componentes/RealizadoPrevistoPlanejamentoMensal/`: comparação mensal dos totais, diferença e controles de visibilidade das barras.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leitura das transações por usuário e intervalo.
@@ -504,6 +522,8 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   cancelamento das consultas e recuperação da fonte que falhou.
 - Compromisso mensal calculado pela razão dos totais, previsão zero, meta superada
   e consistência entre os dois gráficos durante atualizações, filtros e troca de mês.
+- Comparação mensal dos objetivos com diferença em centavos, percentual positivo ou
+  negativo, previsão zero, cores estáveis, controles de barras e consultas compartilhadas.
 
 Para validar a integração real, use contas de teste com e sem assinatura ativa e
 confira login, atualização da página, acesso direto a `/objetivos` e `/resultados`,
@@ -561,7 +581,9 @@ no mês no aplicativo e com a previsão mensal de cada objetivo. Confirme que sa
 iniciais e resgates não alteram o realizado, inclusive em dívidas. Teste o mês anterior,
 atualização de previsão, mais de 12 objetivos, filtro, meta zero e meta superada.
 No segundo gráfico, confira os mesmos totais do primeiro e o percentual realizado/previsto.
-Trocar o filtro ou a página de objetivos não deve alterar o resumo. Os quatro gráficos
+Trocar o filtro ou a página de objetivos não deve alterar o resumo. No terceiro gráfico,
+compare os totais com os dois primeiros e confira a diferença realizado menos previsto,
+o mês no eixo horizontal e os controles de cada barra. Os três gráficos globais
 demonstrativos ainda não devem ser usados para conferir esses totais.
 
 ## Publicação
@@ -579,4 +601,4 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal
-e dos dois primeiros gráficos de Objetivos também no endereço publicado.
+e dos três gráficos mensais de Objetivos também no endereço publicado.

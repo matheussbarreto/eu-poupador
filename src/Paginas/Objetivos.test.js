@@ -7,11 +7,10 @@ import { observarTransacoes } from "../services/transacoesService";
 global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn() }));
-jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar.dataLabels.value.formatter() })}</div>);
+jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar?.dataLabels.value.formatter(), categorias: props.options.xaxis?.categories })}</div>);
 jest.mock("../Componentes/AcumulosAmortizacoesCompromissoGlobal", () => () => null);
 jest.mock("../Componentes/AcumulosAmortizacoesPlanejamentoGlobal", () => () => null);
 jest.mock("../Componentes/AtualDesesjadoPlanejamentoGlobal", () => () => null);
-jest.mock("../Componentes/RealizadoPrevistoPlanejamentoMensal", () => () => null);
 
 let container;
 let root;
@@ -23,6 +22,65 @@ const painel = () => container.querySelector('.aportes-pagamentos-planejamento-m
 const graficos = () => [...painel().querySelectorAll('[data-testid="grafico"]')].map((elemento) => JSON.parse(elemento.textContent));
 const compromisso = () => container.querySelector('.aportes-pagamentos-compromisso-mensal');
 const graficoCompromisso = () => compromisso().querySelector('[data-testid="grafico"]');
+const comparacao = () => container.querySelector('.realizado-previsto-planejamento-mensal');
+const graficoComparacao = () => comparacao().querySelector('[data-testid="grafico"]');
+
+test("comparação mensal compartilha totais e atualizações sem novas consultas ou efeito dos filtros", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(150)));
+    expect(graficoComparacao()).toBeNull();
+    await act(async () => cadastros[0].receber(Array.from({ length: 13 }, (_, indice) => ({ id: indice === 0 ? "a" : String(indice), goal: 100 }))));
+    expect(JSON.parse(graficoComparacao().textContent)).toEqual({ series: [{ name: "Realizado", data: [150] }, { name: "Previsto", data: [1300] }], categorias: ["Out/2026"] });
+    const resumo = comparacao().textContent;
+    await act(async () => painel().querySelector('[aria-label="Próxima página de objetivos"]').click());
+    await act(async () => painel().querySelector('input').click());
+    expect(comparacao().textContent).toBe(resumo);
+    await act(async () => consultas[0].receber(transacoes(200)));
+    await act(async () => cadastros[0].receber(investimentos));
+    expect(JSON.parse(graficoComparacao().textContent).series.map((serie) => serie.data[0])).toEqual([200, 100]);
+    expect(compromisso().querySelector('[aria-label^="Realizado:"]').textContent).toContain("200,00");
+    expect(comparacao().querySelector('.diferenca-mensal').textContent).toContain("+100,00%");
+    expect(consultas).toHaveLength(1);
+    expect(cadastros).toHaveLength(1);
+});
+
+test("comparação acompanha mês e conta, reinicia visibilidade e ignora respostas antigas", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(100)));
+    await act(async () => cadastros[0].receber(investimentos));
+    await act(async () => comparacao().querySelector('[aria-label="Exibir Realizado"]').click());
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(graficoComparacao()).toBeNull();
+    await act(async () => consultas[0].receber(transacoes(999)));
+    expect(graficoComparacao()).toBeNull();
+    await act(async () => consultas[1].receber([]));
+    expect(JSON.parse(graficoComparacao().textContent)).toEqual({ series: [{ name: "Realizado", data: [0] }, { name: "Previsto", data: [200] }], categorias: ["Set/2026"] });
+    expect(cadastros).toHaveLength(1);
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    await act(async () => consultas[2].receber([]));
+    await act(async () => cadastros[0].receber(investimentos));
+    expect(graficoComparacao()).toBeNull();
+    await act(async () => cadastros[1].receber([]));
+    expect(graficoComparacao()).toBeNull();
+    expect(comparacao().textContent).toContain("Não há aportes, pagamentos ou previsões");
+});
+
+test("nova tentativa pela comparação recupera somente a consulta com erro", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => consultas[0].receber(transacoes(50)));
+    await act(async () => cadastros[0].falhar({ code: "permission-denied" }));
+    expect(comparacao().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => comparacao().querySelector('button').click());
+    expect(consultas).toHaveLength(1);
+    await act(async () => cadastros[1].receber(investimentos));
+    expect(graficoComparacao()).not.toBeNull();
+    await act(async () => consultas[0].receber(transacoes("inválido")));
+    expect(graficoComparacao()).toBeNull();
+    await act(async () => comparacao().querySelector('button').click());
+    expect(cadastros).toHaveLength(2);
+    await act(async () => consultas[1].receber(transacoes(150)));
+    expect(JSON.parse(graficoComparacao().textContent).series[0].data).toEqual([150]);
+});
 
 test("compromisso compartilha os totais e atualizações sem depender do filtro ou da paginação", async () => {
     await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));

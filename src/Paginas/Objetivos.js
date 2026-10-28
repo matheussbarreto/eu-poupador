@@ -9,7 +9,7 @@ import TituloDaPagina from "../Componentes/TituloDaPagina";
 import MonthSelector from "../Componentes/MonthSelector";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarTransacoes } from "../services/transacoesService";
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
 
 const Objetivos = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -79,6 +79,10 @@ const Objetivos = ({ usuarioId }) => {
         ? calcularCompromissoMensal(planejamentoMensal.dados)
         : undefined, [planejamentoMensal.dados]);
 
+    const realizadoPrevistoMensal = useMemo(() => planejamentoMensal.dados
+        ? calcularRealizadoPrevistoMensal(planejamentoMensal.dados, new Date(ano, mes, 1))
+        : undefined, [planejamentoMensal.dados, ano, mes]);
+
     const erro = (!carregandoTransacoes && consulta.erro) || (!carregandoCadastros && cadastros.erro) || planejamentoMensal.erro;
     const tentarNovamente = () => {
         if (consulta.erro || planejamentoMensal.origemErro === "transacoes") setTentativa((valor) => valor + 1);
@@ -103,7 +107,13 @@ const Objetivos = ({ usuarioId }) => {
                     erro={erro}
                     onTentarNovamente={tentarNovamente}
                 />
-                <RealizadoPrevistoPlanejamentoMensal />
+                <RealizadoPrevistoPlanejamentoMensal
+                    key={periodo}
+                    dados={realizadoPrevistoMensal}
+                    carregando={!erro && (carregandoTransacoes || carregandoCadastros)}
+                    erro={erro}
+                    onTentarNovamente={tentarNovamente}
+                />
             </div>
             <AcumulosAmortizacoesPlanejamentoGlobal />
             <div className="container-left">
