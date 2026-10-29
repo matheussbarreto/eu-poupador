@@ -1,6 +1,6 @@
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { obterFirebase } from "./firebase";
-import { observarTransacoes, observarSaldosIniciais } from "./transacoesService";
+import { observarTransacoes, observarSaldosIniciais, observarHistoricoTransacoes } from "./transacoesService";
 
 jest.mock("firebase/firestore", () => ({
     collection: jest.fn(),
@@ -11,6 +11,25 @@ jest.mock("firebase/firestore", () => ({
 jest.mock("./firebase", () => ({ obterFirebase: jest.fn() }));
 
 const intervalo = { inicio: new Date(2026, 9, 1), fim: new Date(2026, 10, 1) };
+
+test("histórico inclui origens e movimentos antigos sem filtro mensal ou exclusão de campos ausentes", () => {
+    collection.mockReturnValue("historico");
+    const receber = jest.fn();
+    const falhar = jest.fn();
+    const cancelar = jest.fn();
+    onSnapshot.mockReturnValue(cancelar);
+    expect(observarHistoricoTransacoes("usuario-a", receber, falhar)).toBe(cancelar);
+    expect(collection).toHaveBeenCalledWith(expect.anything(), "users", "usuario-a", "transactions");
+    expect(where).not.toHaveBeenCalled();
+    expect(onSnapshot).toHaveBeenCalledWith("historico", expect.any(Function), falhar);
+    onSnapshot.mock.calls[0][1]({ docs: [{ id: "origem", data: () => ({ amount: -500, outgoingType: "create", date: "2020-01-01T00:00:00.000Z" }) }] });
+    expect(receber.mock.calls[0][0][0]).toMatchObject({ id: "origem", amount: -500 });
+});
+
+test("histórico exige usuário autenticado", () => {
+    expect(() => observarHistoricoTransacoes("", jest.fn(), jest.fn())).toThrow("entrar");
+    expect(onSnapshot).not.toHaveBeenCalled();
+});
 
 test("saldos iniciais usam uma única consulta de criação por usuário, independente de período", () => {
     collection.mockReturnValue("transacoes");

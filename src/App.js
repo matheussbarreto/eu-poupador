@@ -45,7 +45,7 @@ function App() {
             <Routes>
               <Route path="/" element={<BalancoMensal usuarioId={sessao.usuario.uid} />} />
               <Route path="/objetivos" element={<Objetivos usuarioId={sessao.usuario.uid} />} />
-              <Route path="/resultados" element={<Resultados />} />
+              <Route path="/resultados" element={<Resultados usuarioId={sessao.usuario.uid} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

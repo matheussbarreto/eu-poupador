@@ -1,6 +1,15 @@
 .patrimonio-ativos-passivos {
-    /* flex: 3; */
     width: 70%;
+    min-width: 0;
+}
+
+.patrimonio-ativos-passivos .estado-patrimonio {
+    min-height: 400px;
+    padding-top: 20px;
+}
+
+.patrimonio-ativos-passivos .estado-patrimonio .button {
+    margin-top: 16px;
 }
 
 .patrimonio-ativos-passivos .apexcharts-legend :last-child .apexcharts-legend-text {
@@ -14,7 +23,6 @@
 }
 
 .patrimonio-ativos-passivos .apexcharts-legend-text span {
-    /* flex: 1; */
     text-align: left;
 }
 

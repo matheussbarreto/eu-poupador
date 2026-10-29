@@ -18,7 +18,7 @@ jest.mock("./services/authService", () => ({
 }));
 jest.mock("./Paginas/BalancoMensal", () => () => <p>Painel mensal autorizado</p>);
 jest.mock("./Paginas/Objetivos", () => ({ usuarioId }) => <p>Objetivos autorizados: {usuarioId}</p>);
-jest.mock("./Paginas/Resultados", () => () => <p>Resultados autorizados</p>);
+jest.mock("./Paginas/Resultados", () => ({ usuarioId }) => <p>Resultados autorizados: {usuarioId}</p>);
 
 const App = require("./App").default;
 let container;
@@ -75,13 +75,13 @@ test("falha de validação mostra o erro sem renderizar o painel", async () => {
     expect(container.textContent).not.toContain("Painel mensal autorizado");
 });
 
-test("objetivos recebe o identificador da sessão e acompanha a troca de usuário", async () => {
-    window.history.replaceState({}, "", "/objetivos");
+test.each([["objetivos", "Objetivos"], ["resultados", "Resultados"]])("%s recebe o identificador da sessão e acompanha a troca de usuário", async (rota, pagina) => {
+    window.history.replaceState({}, "", `/${rota}`);
     await act(async () => root.render(<App />));
     await act(async () => atualizarSessao({ usuario: { uid: "usuario-a" }, carregando: false, erro: "" }));
-    expect(container.textContent).toContain("Objetivos autorizados: usuario-a");
+    expect(container.textContent).toContain(`${pagina} autorizados: usuario-a`);
     await act(async () => atualizarSessao({ usuario: { uid: "usuario-b" }, carregando: false, erro: "" }));
-    expect(container.textContent).toContain("Objetivos autorizados: usuario-b");
+    expect(container.textContent).toContain(`${pagina} autorizados: usuario-b`);
     expect(container.textContent).not.toContain("usuario-a");
 });
 

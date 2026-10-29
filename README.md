@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Dados financeiros de demonstração, com consulta pública da Selic no gráfico de rendimentos percentuais. |
+| Resultados | `/resultados` | **Patrimônio: Ativos vs. Passivos** usa contas, objetivos e transações do usuário no Firestore. Os outros doze gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -547,12 +547,70 @@ Carregamento, erros e nova tentativa são compartilhados com os outros gráficos
 Falhas na consulta mensal não afetam esta comparação. Sem cadastros ativos, o componente
 mostra a ausência de dados.
 
+## Resultados: patrimônio mensal
+
+`Resultados` recebe o usuário da sessão e compartilha três consultas em tempo real:
+`accounts`, `investments` e o histórico completo de `transactions`. A troca de mês
+recalcula a apresentação sem abrir novas consultas. Sair da página ou trocar de usuário
+cancela as leituras e impede que respostas antigas apareçam na nova sessão.
+
+`calcularSaldosMensais`, em `resultadosService.js`, reconstrói a posição por entidade
+para os 12 meses até o selecionado. `calcularPatrimonioMensal` transforma essa base
+nas três séries do primeiro gráfico. Os próximos gráficos poderão reutilizar a mesma
+base, mantendo seus próprios cálculos e recebendo os resultados por propriedades.
+
+Regras do primeiro gráfico:
+
+- As transações de criação entram uma única vez, inclusive valores negativos de dívidas.
+- Entradas acrescentam e saídas retiram valores da entidade identificada por `inID`
+  ou `outID`. Contas e objetivos têm identificadores separados por coleção.
+- Aportes, resgates, transferências e pagamentos entre contas e objetivos preservam
+  o patrimônio líquido; podem mudar a distribuição entre ativos e passivos.
+- Ativos são os saldos positivos. Passivos são o módulo dos saldos negativos.
+  Patrimônio é ativos menos passivos, preservando resultados negativos.
+- Os cálculos acumulam centavos e incluem os movimentos anteriores à janela visível.
+  Meses sem movimentos mantêm a posição anterior. No gráfico, meses anteriores ao primeiro
+  registro aparecem como zero; um período inteiro sem registros apresenta três séries zeradas.
+  Esse zero representa ausência de saldo nos registros disponíveis, não a confirmação de que
+  não existia patrimônio. A transição para o primeiro mês registrado pode representar apenas
+  o início do uso do aplicativo. A base compartilhada mantém a distinção entre ausência de
+  histórico e saldo efetivamente zero. Falhas de consulta e dados inválidos continuam gerando erro.
+- O mês atual considera somente lançamentos já ocorridos no momento do cálculo.
+  Meses anteriores usam seu fechamento, com limite final exclusivo no calendário local.
+- Transações com `isDeleted === true` são desconsideradas. Excluir apenas o cadastro
+  não apaga as movimentações históricas ainda ativas. Referências sem cadastro geram
+  erro, evitando somas parciais.
+
+Na amostra conferida, `accounts.balance` não incluía movimentações existentes e
+`investments.current` coincidia com o registro de criação. Por isso esses campos
+não são somados como posições consolidadas nem adicionados novamente às criações.
+Contas sem criação e com cadastro zerado começam em zero, conforme o modelo validado.
+Saldo cadastrado não zero sem origem, objetivo movimentado sem origem e criações
+duplicadas geram erro em vez de estimar o saldo inicial.
+
+Ainda não há interpretação confirmada dos lançamentos `update` (rendimento ou ajuste
+absoluto). Se eles existirem até o período calculado, o gráfico informa que não foi
+possível calcular o patrimônio com esses ajustes, em vez de ignorá-los silenciosamente.
+
+O componente mantém as cores e a legenda com os totais do mês selecionado, permite
+ocultar séries pela legenda e trata carregamento, erro e nova tentativa. A nova tentativa
+reinicia as três consultas. As três séries são exibidas como linhas nos 12 meses,
+incluindo os zeros anteriores ao primeiro registro. Não há aviso de andamento da
+implementação na página.
+
+A leitura integral do histórico é necessária nesta etapa porque não existem fechamentos
+mensais disponíveis. Ela é compartilhada uma vez por sessão da página, mas seu custo
+cresce com o volume de transações. Para históricos grandes, o próximo passo de escala
+é persistir fechamentos confiáveis e consultar somente os movimentos posteriores à base.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
 - `src/Paginas/Login.js`: página e apresentação inicial.
 - `src/Paginas/BalancoMensal.js`: seleção de período, carregamento compartilhado e cálculo dos dados apresentados.
 - `src/Paginas/Objetivos.js`: consultas compartilhadas e cálculos dos seis gráficos, mensais e globais.
+- `src/Paginas/Resultados.js`: consultas compartilhadas, período e base histórica dos resultados.
+- `src/Componentes/PatrimonioAtivosPassivos/`: séries mensais de ativos, passivos e patrimônio líquido.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -573,7 +631,9 @@ mostra a ausência de dados.
 - `src/Componentes/AtualDesesjadoPlanejamentoGlobal/`: comparação dos totais globais, diferença e controles de visibilidade das barras.
 - `src/services/firebase.js`: inicialização do SDK modular.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
-- `src/services/transacoesService.js`: leitura das transações por usuário e intervalo e consulta compartilhada dos saldos iniciais.
+- `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
+- `src/services/contasService.js`: leitura das contas do usuário.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, cálculo do patrimônio e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -594,6 +654,10 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 
 - Login, assinatura, restauração da sessão, proteção das rotas, recuperação e logout.
 - Consulta de transações por usuário e intervalo, atualizações e cancelamento.
+- Patrimônio mensal: origens, transferências, pagamentos, saldos negativos, continuidade,
+  ausência de histórico, datas futuras e inconsistências que impedem reconstrução segura.
+- Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
+  respostas atrasadas, cancelamento, erros e nova tentativa.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,

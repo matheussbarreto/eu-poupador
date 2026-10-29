@@ -24,6 +24,15 @@ export function observarSaldosIniciais(usuarioId, atualizarTransacoes, tratarErr
     return observarConsulta(consulta, atualizarTransacoes, tratarErro);
 }
 
+export function observarHistoricoTransacoes(usuarioId, atualizarTransacoes, tratarErro) {
+    if (!usuarioId) throw new Error("É necessário entrar para consultar os lançamentos.");
+
+    const { db } = obterFirebase();
+    // O patrimônio precisa das origens e das movimentações anteriores à janela do gráfico.
+    // Uma leitura compartilhada permite trocar de mês sem consultar novamente o histórico.
+    return observarConsulta(collection(db, "users", usuarioId, "transactions"), atualizarTransacoes, tratarErro);
+}
+
 function observarConsulta(consulta, atualizarTransacoes, tratarErro) {
     return onSnapshot(consulta, (snapshot) => {
         try {
