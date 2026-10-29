@@ -1,8 +1,28 @@
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, calcularAtualDesejadoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "./objetivosService";
 
 const outubro = new Date(2026, 9, 1);
 const data = new Date(2026, 9, 15, 12).toISOString();
 const aporte = (amount, outros = {}) => ({ date: data, amount, outgoingType: "account", incomingType: "investment", inID: "a", ...outros });
+
+test("comparação global reutiliza os totais e a diferença em centavos do planejamento", () => {
+    const planejamento = Object.freeze(calcularPlanejamentoGlobal([
+        { id: "a", current: 0.1, montante: 0.1 }, { id: "b", current: 0.2, montante: 0.1 },
+    ]));
+    expect(calcularAtualDesejadoGlobal(planejamento)).toEqual({
+        categoria: "Posição atual", atual: 0.3, desejado: 0.2, diferenca: 0.1, diferencaPercentual: 50, semDados: false,
+    });
+    expect(calcularCompromissoGlobal(planejamento).totalAtual).toBe(0.3);
+});
+
+test.each([
+    [-150, 400, -550, -137.5, false], [0, 100, -100, -100, false], [150, 100, 50, 50, false],
+    [100, 100, 0, 0, false], [50, 0, 50, null, false], [-50, 0, -50, null, false],
+    [0, 0, 0, null, false], [0, 0, 0, null, true],
+])("comparação global trata atual %s e desejado %s sem confundir diferença com compromisso", (totalAtual, totalDesejado, diferenca, diferencaPercentual, semDados) => {
+    expect(calcularAtualDesejadoGlobal({ totalAtual, totalDesejado, diferenca, semDados })).toEqual({
+        categoria: "Posição atual", atual: totalAtual, desejado: totalDesejado, diferenca, diferencaPercentual, semDados,
+    });
+});
 
 test("compromisso global reutiliza os totais líquidos, incluindo dívidas e bens sem meta", () => {
     const planejamento = Object.freeze(calcularPlanejamentoGlobal([

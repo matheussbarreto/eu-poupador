@@ -9,7 +9,7 @@ import TituloDaPagina from "../Componentes/TituloDaPagina";
 import MonthSelector from "../Componentes/MonthSelector";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarTransacoes, observarSaldosIniciais } from "../services/transacoesService";
-import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
+import { calcularPlanejamentoMensal, calcularCompromissoMensal, calcularRealizadoPrevistoMensal, calcularPlanejamentoGlobal, calcularCompromissoGlobal, calcularAtualDesejadoGlobal, obterPeriodoObjetivos, obterMensagemErroObjetivos } from "../services/objetivosService";
 
 const Objetivos = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -121,6 +121,10 @@ const Objetivos = ({ usuarioId }) => {
         ? calcularCompromissoGlobal(planejamentoGlobal.dados)
         : undefined, [planejamentoGlobal.dados]);
 
+    const atualDesejadoGlobal = useMemo(() => planejamentoGlobal.dados
+        ? calcularAtualDesejadoGlobal(planejamentoGlobal.dados)
+        : undefined, [planejamentoGlobal.dados]);
+
     const erroGlobal = (!carregandoCadastros && cadastros.erro) || (temDividas && !carregandoOrigens && origens.erro) || planejamentoGlobal.erro;
     const tentarNovamenteGlobal = () => {
         if (cadastros.erro || planejamentoGlobal.origemErro === "cadastros") setTentativaCadastros((valor) => valor + 1);
@@ -172,7 +176,13 @@ const Objetivos = ({ usuarioId }) => {
                     erro={erroGlobal}
                     onTentarNovamente={tentarNovamenteGlobal}
                 />
-                <AtualDesesjadoPlanejamentoGlobal />
+                <AtualDesesjadoPlanejamentoGlobal
+                    key={usuarioId}
+                    dados={atualDesejadoGlobal}
+                    carregando={!erroGlobal && (carregandoCadastros || (temDividas && carregandoOrigens))}
+                    erro={erroGlobal}
+                    onTentarNovamente={tentarNovamenteGlobal}
+                />
             </div>
         </div>
     )

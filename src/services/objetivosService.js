@@ -150,6 +150,15 @@ export function calcularCompromissoGlobal(planejamentoGlobal) {
     };
 }
 
+export function calcularAtualDesejadoGlobal(planejamentoGlobal) {
+    const { totalAtual, totalDesejado, diferenca, semDados } = planejamentoGlobal;
+    return {
+        categoria: "Posição atual",
+        atual: totalAtual, desejado: totalDesejado, diferenca, semDados,
+        diferencaPercentual: totalDesejado === 0 ? null : diferenca / totalDesejado * 100,
+    };
+}
+
 export function obterMensagemErroObjetivos(erro) {
     switch (erro?.code) {
         case "permission-denied":

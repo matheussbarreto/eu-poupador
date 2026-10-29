@@ -8,7 +8,6 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarTransacoes: jest.fn(), observarSaldosIniciais: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, percentual: props.options.plotOptions.radialBar?.dataLabels.value.formatter(), categorias: props.options.xaxis?.categories })}</div>);
-jest.mock("../Componentes/AtualDesesjadoPlanejamentoGlobal", () => () => null);
 
 let container;
 let root;
@@ -27,6 +26,79 @@ const painelGlobal = () => container.querySelector('.acumulo-amortizacoes-planej
 const graficosGlobais = () => [...painelGlobal().querySelectorAll('[data-testid="grafico"]')].map((elemento) => JSON.parse(elemento.textContent));
 const compromissoGlobal = () => container.querySelector('.acumulos-amortizacoes-compromisso-global');
 const graficoCompromissoGlobal = () => compromissoGlobal().querySelector('[data-testid="grafico"]');
+const comparacaoGlobal = () => container.querySelector('.atual-desesjado-planejamento-global');
+const graficoComparacaoGlobal = () => comparacaoGlobal().querySelector('[data-testid="grafico"]');
+
+test("comparação global compartilha totais e atualizações, sem consultas extras ou efeito dos filtros", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber(Array.from({ length: 13 }, (_, indice) => ({ id: String(indice), current: 50, montante: 100 }))));
+    expect(JSON.parse(graficoComparacaoGlobal().textContent)).toEqual({
+        series: [{ name: "Atual", data: [650] }, { name: "Desejado", data: [1300] }], categorias: ["Posição atual"],
+    });
+    const resumo = comparacaoGlobal().textContent;
+    await act(async () => painelGlobal().querySelector('[aria-label="Próxima página de objetivos globais"]').click());
+    await act(async () => painelGlobal().querySelector('input').click());
+    expect(comparacaoGlobal().textContent).toBe(resumo);
+    await act(async () => cadastros[0].receber([{ id: "a", current: 100, montante: 400 }, { id: "d", current: -250, objective: "Dívida" }]));
+    expect(graficoComparacaoGlobal()).toBeNull();
+    await act(async () => origens[0].receber([{ inID: "d", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    expect(JSON.parse(graficoComparacaoGlobal().textContent).series).toEqual([{ name: "Atual", data: [-150] }, { name: "Desejado", data: [400] }]);
+    expect(comparacaoGlobal().querySelector('.diferenca-global').textContent).toContain("-137,50%");
+    expect(comparacaoGlobal().querySelector('.legenda-serie > span').textContent).toBe(compromissoGlobal().querySelector('.total-atual strong').textContent);
+    expect(cadastros).toHaveLength(1);
+    expect(origens).toHaveLength(1);
+    expect(consultas).toHaveLength(1);
+});
+
+test("comparação global preserva barras e visibilidade ao trocar mês, mas reinicia ao trocar usuário", async () => {
+    const objetivos = [{ id: "a", current: 50, montante: 100 }];
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].receber(objetivos));
+    await act(async () => comparacaoGlobal().querySelector('[aria-label="Exibir Atual"]').click());
+    const resumo = comparacaoGlobal().textContent;
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    await act(async () => consultas[1].falhar({ code: "unavailable" }));
+    expect(comparacaoGlobal().textContent).toBe(resumo);
+    expect(comparacaoGlobal().querySelector('[aria-label="Exibir Atual"]').checked).toBe(false);
+    expect(cadastros).toHaveLength(1);
+    expect(origens).toHaveLength(1);
+    await act(async () => root.render(<Objetivos usuarioId="usuario-b" />));
+    expect(graficoComparacaoGlobal()).toBeNull();
+    expect(comparacaoGlobal().querySelector('.legenda')).toBeNull();
+    await act(async () => cadastros[0].receber(objetivos));
+    await act(async () => origens[0].falhar({ code: "permission-denied" }));
+    expect(graficoComparacaoGlobal()).toBeNull();
+    expect(comparacaoGlobal().querySelector('[role="alert"]')).toBeNull();
+    await act(async () => cadastros[1].receber(objetivos));
+    expect(comparacaoGlobal().querySelector('[aria-label="Exibir Atual"]').checked).toBe(true);
+    expect(JSON.parse(graficoComparacaoGlobal().textContent).series).toHaveLength(2);
+    await act(async () => cadastros[1].receber([]));
+    expect(graficoComparacaoGlobal()).toBeNull();
+    expect(comparacaoGlobal().textContent).toContain("Não há objetivos cadastrados.");
+});
+
+test("nova tentativa pela comparação global recupera somente a fonte que falhou", async () => {
+    await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));
+    await act(async () => cadastros[0].falhar({ code: "permission-denied" }));
+    expect(comparacaoGlobal().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => comparacaoGlobal().querySelector('button').click());
+    await act(async () => cadastros[1].receber([{ id: "d", current: -750, objective: "Dívida" }]));
+    expect(origens).toHaveLength(1);
+    expect(consultas).toHaveLength(1);
+    await act(async () => origens[0].falhar({ code: "unavailable" }));
+    await act(async () => comparacaoGlobal().querySelector('button').click());
+    expect(cadastros).toHaveLength(2);
+    expect(consultas).toHaveLength(1);
+    await act(async () => origens[1].receber([{ inID: "d", outgoingType: "create", incomingType: "investment", amount: -1000 }]));
+    expect(JSON.parse(graficoComparacaoGlobal().textContent).series).toEqual([{ name: "Atual", data: [-750] }, { name: "Desejado", data: [0] }]);
+    expect(comparacaoGlobal().querySelector('.diferenca-global').textContent).toContain("(—)");
+    await act(async () => cadastros[1].receber([{ id: "d", current: "inválido", objective: "Dívida" }]));
+    expect(graficoComparacaoGlobal()).toBeNull();
+    await act(async () => comparacaoGlobal().querySelector('button').click());
+    expect(origens).toHaveLength(2);
+    await act(async () => cadastros[2].receber([{ id: "a", current: 200, montante: 100 }]));
+    expect(comparacaoGlobal().querySelector('.diferenca-global').textContent).toContain("+100,00%");
+});
 
 test("compromisso global compartilha totais líquidos, atualizações e consultas sem depender de filtro ou mês", async () => {
     await act(async () => root.render(<Objetivos usuarioId="usuario-a" />));

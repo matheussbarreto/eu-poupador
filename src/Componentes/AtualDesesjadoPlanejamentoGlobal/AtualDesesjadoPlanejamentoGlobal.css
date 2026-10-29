@@ -5,6 +5,21 @@
     gap: 10px;
 }
 
-.atual-desesjado-planejamento-global .legenda-serie:last-child {
+.atual-desesjado-planejamento-global .legenda-serie {
+    min-width: 0;
+    width: 100%;
+    gap: 8px;
+}
+
+.atual-desesjado-planejamento-global .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
+}
+
+.atual-desesjado-planejamento-global .diferenca-global {
     font-weight: bold;
+}
+
+.atual-desesjado-planejamento-global .estado-atual-desejado {
+    min-height: 200px;
 }
