@@ -1,9 +1,14 @@
 .variacao-patrimonial {
     width: 29%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .variacao-patrimonial .legenda-serie {
-    min-width: 290px;
+    min-width: 0;
+    width: 100%;
+    gap: 8px;
 }
 
 .variacao-patrimonial .legenda-serie:last-child {
@@ -14,8 +19,29 @@
     text-align: left;
 }
 
-.variacao-patrimonial .legenda-serie span:last-child {
-    width: 60%;
+.variacao-patrimonial .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
+}
+
+.variacao-patrimonial .area-grafico-variacao {
+    position: relative;
+    flex: 1;
+    min-height: 300px;
+}
+
+.variacao-patrimonial .area-grafico-variacao > div {
+    position: absolute;
+    inset: 0;
+}
+
+.variacao-patrimonial .estado-variacao {
+    min-height: 400px;
+    padding-top: 20px;
+}
+
+.variacao-patrimonial .estado-variacao .button {
+    margin-top: 16px;
 }
 
 @media only screen and (max-width: 1300px) {

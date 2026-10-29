@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,33 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test.each([
+    [100, 150, 50, 50], [100, 50, -50, -50], [100, 100, 0, 0],
+    [0, 150, 150, null], [0, -150, -150, null], [0, 0, 0, null],
+    [-100, -50, 50, 50], [-100, -150, -50, -50], [-100, 0, 100, 100],
+    [-100, 100, 200, 200], [100, -100, -200, -200], [0.1, 0.3, 0.2, 200],
+])("variação de %s para %s mantém diferença %s e percentual %s", (anterior, atual, diferenca, percentual) => {
+    const dados = Object.freeze({ categorias: Object.freeze(["Ago/2026", "Set/2026", "Out/2026"]), patrimonios: Object.freeze([99999, anterior, atual]) });
+    expect(calcularVariacaoPatrimonial(dados)).toEqual({
+        categoria: "Out/2026", categoriaAnterior: "Set/2026", anterior, atual, diferenca, diferencaPercentual: percentual,
+    });
+});
+
+test("comparação reutiliza os últimos totais do histórico, inclusive virada do ano e meses sem movimentos", () => {
+    const origem = transacao(150, "create", "account", null, "c", -3);
+    const base = patrimonio([origem], contas, [], new Date(2026, 0, 1));
+    expect(calcularVariacaoPatrimonial(base)).toEqual({
+        categoria: "Jan/2026", categoriaAnterior: "Dez/2025", anterior: 150, atual: 150, diferenca: 0, diferencaPercentual: 0,
+    });
+    expect(calcularVariacaoPatrimonial(patrimonio([], contas, []))).toMatchObject({ anterior: 0, atual: 0, diferenca: 0, diferencaPercentual: null });
+});
+
+test("variação rejeita valores inválidos e diferença acima da precisão segura", () => {
+    for (const valores of [[NaN, 0], [0, Infinity], ["100", 200], [-90000000000000, 90000000000000]]) {
+        expect(() => calcularVariacaoPatrimonial({ categorias: ["Set/2026", "Out/2026"], patrimonios: valores })).toThrow();
+    }
+});
 
 test("reconstrói posições mensais com criação uma vez, aportes, resgates e pagamentos neutros no patrimônio", () => {
     const dados = patrimonio([...criacoes,

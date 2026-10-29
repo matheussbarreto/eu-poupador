@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | **Patrimônio: Ativos vs. Passivos** usa contas, objetivos e transações do usuário no Firestore. Os outros doze gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | **Patrimônio: Ativos vs. Passivos** e **Variação Patrimonial** compartilham contas, objetivos e transações do usuário no Firestore. Os outros onze gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -556,8 +556,10 @@ cancela as leituras e impede que respostas antigas apareçam na nova sessão.
 
 `calcularSaldosMensais`, em `resultadosService.js`, reconstrói a posição por entidade
 para os 12 meses até o selecionado. `calcularPatrimonioMensal` transforma essa base
-nas três séries do primeiro gráfico. Os próximos gráficos poderão reutilizar a mesma
-base, mantendo seus próprios cálculos e recebendo os resultados por propriedades.
+nas três séries do primeiro gráfico. `calcularVariacaoPatrimonial` compara os dois
+últimos valores dessa série de patrimônio, sem novas consultas. Os próximos gráficos
+poderão reutilizar a mesma base, mantendo seus próprios cálculos e recebendo os
+resultados por propriedades.
 
 Regras do primeiro gráfico:
 
@@ -603,6 +605,25 @@ mensais disponíveis. Ela é compartilhada uma vez por sessão da página, mas s
 cresce com o volume de transações. Para históricos grandes, o próximo passo de escala
 é persistir fechamentos confiáveis e consultar somente os movimentos posteriores à base.
 
+### Variação Patrimonial
+
+O segundo gráfico compara o patrimônio do mês selecionado com o mês imediatamente
+anterior. A diferença em reais é **atual menos anterior**, calculada em centavos.
+O percentual é **diferença ÷ módulo do anterior × 100**: usar o módulo mantém uma
+melhora de saldo negativo com sinal positivo. Por exemplo, passar de -R$ 100 para
+-R$ 50 representa +R$ 50 (+50%). Se o patrimônio anterior for zero, o percentual
+aparece como `—`, preservando os valores e a diferença em reais.
+
+A comparação segue os mesmos zeros anteriores ao primeiro registro usados no primeiro
+gráfico. Um mês sem movimentos mantém a posição anterior e tem variação zero.
+O mês selecionado aparece no eixo, e cada item da legenda identifica seu mês ao
+posicionar o ponteiro sobre ele. As barras preservam valores negativos.
+
+Os controles ocultam e reexibem cada série, mantendo suas cores, os totais e a diferença.
+Se ambas forem ocultadas, aparece uma orientação para selecionar uma série. Trocar
+de mês ou de usuário reinicia a visibilidade. Carregamento, falhas de consulta e nova
+tentativa são compartilhados com o primeiro gráfico; erros não são convertidos em zero.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -611,6 +632,7 @@ cresce com o volume de transações. Para históricos grandes, o próximo passo 
 - `src/Paginas/Objetivos.js`: consultas compartilhadas e cálculos dos seis gráficos, mensais e globais.
 - `src/Paginas/Resultados.js`: consultas compartilhadas, período e base histórica dos resultados.
 - `src/Componentes/PatrimonioAtivosPassivos/`: séries mensais de ativos, passivos e patrimônio líquido.
+- `src/Componentes/VariacaoPatrimonial/`: comparação do patrimônio entre meses, diferença e controles das barras.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -633,7 +655,7 @@ cresce com o volume de transações. Para históricos grandes, o próximo passo 
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, cálculo do patrimônio e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, variação patrimonial e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -656,8 +678,10 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 - Consulta de transações por usuário e intervalo, atualizações e cancelamento.
 - Patrimônio mensal: origens, transferências, pagamentos, saldos negativos, continuidade,
   ausência de histórico, datas futuras e inconsistências que impedem reconstrução segura.
+- Variação patrimonial: comparação dos dois últimos meses, centavos, bases negativas
+  ou zeradas, ausência de movimentos, cores e controles de visibilidade.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros e nova tentativa.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os dois gráficos.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -767,6 +791,12 @@ Confira a diferença em reais e percentual, saldo negativo, metas zeradas, ocult
 e retorno das barras. O eixo deve permanecer em Posição atual ao trocar de mês;
 ao trocar de conta, as duas barras voltam a ficar visíveis.
 
+Na página Resultados, confira o patrimônio do mês selecionado e do anterior no
+primeiro gráfico e compare com as duas barras de Variação Patrimonial. Verifique
+a diferença em reais, o percentual com base negativa e `—` quando a base for zero.
+Troque de mês, oculte e reexiba as barras e confira se uma atualização dos dados ou
+uma nova tentativa após falha aparece nos dois gráficos.
+
 ## Publicação
 
 O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Vercel:
@@ -781,5 +811,6 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
   direto a `/login`, `/objetivos` e `/resultados`.
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
-a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal
-e dos seis gráficos de Objetivos também no endereço publicado.
+a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
+dos seis gráficos de Objetivos e dos dois primeiros gráficos de Resultados também
+no endereço publicado.

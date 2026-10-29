@@ -17,7 +17,7 @@ import VariacaoRendimentosPercentual from "../Componentes/VariacaoRendimentosPer
 import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
-import { calcularSaldosMensais, calcularPatrimonioMensal, obterMensagemErroResultados } from "../services/resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, obterMensagemErroResultados } from "../services/resultadosService";
 
 const Resultados = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -69,6 +69,14 @@ const Resultados = ({ usuarioId }) => {
             return { erro: obterMensagemErroResultados(erro) };
         }
     }, [saldosMensais.dados]);
+    const variacaoPatrimonial = useMemo(() => {
+        if (!patrimonio.dados) return {};
+        try {
+            return { dados: calcularVariacaoPatrimonial(patrimonio.dados) };
+        } catch (erro) {
+            return { erro: obterMensagemErroResultados(erro) };
+        }
+    }, [patrimonio.dados]);
     const erro = erroConsulta || saldosMensais.erro || patrimonio.erro;
     const tentarNovamente = () => {
         setTentativa((valor) => valor + 1);
@@ -85,7 +93,13 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <VariacaoPatrimonial />
+            <VariacaoPatrimonial
+                key={`variacao-${periodo}`}
+                dados={variacaoPatrimonial.dados}
+                carregando={!erro && carregando}
+                erro={erro || variacaoPatrimonial.erro}
+                onTentarNovamente={tentarNovamente}
+            />
             <ResultadoAtivos />
             <ResultadoPassivos />
             <ResultadoAtivoPassivo />

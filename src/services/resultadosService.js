@@ -121,6 +121,23 @@ export function calcularPatrimonioMensal({ meses }) {
     };
 }
 
+export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {
+    const indice = patrimonios.length - 1;
+    const anterior = obterCentavos(patrimonios[indice - 1]);
+    const atual = obterCentavos(patrimonios[indice]);
+    const diferenca = atual - anterior;
+    if (!Number.isSafeInteger(diferenca)) falhar("app/movimentacao-invalida");
+    return {
+        categoria: categorias[indice],
+        categoriaAnterior: categorias[indice - 1],
+        anterior: anterior / 100,
+        atual: atual / 100,
+        diferenca: diferenca / 100,
+        // O módulo mantém o sinal de melhora/piora mesmo quando o patrimônio anterior é negativo.
+        diferencaPercentual: anterior === 0 ? null : diferenca / Math.abs(anterior) * 100,
+    };
+}
+
 export function obterMensagemErroResultados(erro) {
     const mensagens = {
         "permission-denied": "Não foi possível acessar seus dados. Confira seu acesso e sua assinatura.",
