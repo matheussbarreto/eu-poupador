@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,39 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test.each([
+    [100, 300, 400, 25, 75], [300, 100, 400, 75, 25], [100, 100, 200, 50, 50],
+    [100, 0, 100, 100, 0], [0, 100, 100, 0, 100], [0, 0, 0, 0, 0], [0.1, 0.2, 0.3, 100 / 3, 200 / 3],
+])('comparação de ativos %s e passivos %s usa soma %s como base dos percentuais', (ativo, passivo, total, percentualAtivo, percentualPassivo) => {
+    const dados = calcularResultadoAtivoPassivo(Object.freeze({
+        categorias: Object.freeze(['Set/2026', 'Out/2026']),
+        ativos: Object.freeze([999, ativo]), passivos: Object.freeze([999, passivo]),
+    }));
+    expect(dados.categoria).toBe('Out/2026');
+    expect(dados.total).toBe(total);
+    expect(dados.semDados).toBe(total === 0);
+    expect(dados.itens.map(({ nome, valor }) => [nome, valor])).toEqual([['Ativos', ativo], ['Passivos', passivo]]);
+    expect(dados.itens[0].percentual).toBeCloseTo(percentualAtivo);
+    expect(dados.itens[1].percentual).toBeCloseTo(percentualPassivo);
+});
+
+test('comparação reutiliza o patrimônio e coincide com os totais das duas distribuições', () => {
+    const base = calcular([...criacoes, transacao(250, 'account', 'investment', 'c', 'd')]);
+    const dados = calcularResultadoAtivoPassivo(calcularPatrimonioMensal(base));
+    expect(dados.itens.map(item => item.valor)).toEqual([
+        calcularResultadoAtivos(base, contas, investimentos).total,
+        calcularResultadoPassivos(base, contas, investimentos).total,
+    ]);
+    expect(dados.total).toBe(1700);
+    expect(calcularResultadoAtivoPassivo(patrimonio([], contas, []))).toMatchObject({ total: 0, semDados: true });
+});
+
+test('comparação rejeita totais negativos, inválidos e soma acima da precisão segura', () => {
+    for (const [ativo, passivo] of [[-1, 0], [0, -1], [NaN, 0], [0, Infinity], ['100', 0], [90000000000000, 90000000000000]]) {
+        expect(() => calcularResultadoAtivoPassivo({ categorias: ['Out/2026'], ativos: [ativo], passivos: [passivo] })).toThrow();
+    }
+});
 
 test('passivos agrupam módulos negativos, mantêm IDs separados, centavos e histórico de cadastros excluídos', () => {
     const contasPassivos = [{ id: 'a', type: 'Cartão', isDeleted: true }, { id: 'b', type: 'Cartão' }, { id: 'c', type: 'Banco' }, { id: 'd', type: 'Cartão' }];

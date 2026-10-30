@@ -177,6 +177,22 @@ export function calcularResultadoPassivos({ meses }, contas, investimentos) {
     };
 }
 
+export function calcularResultadoAtivoPassivo({ categorias, ativos, passivos }) {
+    const indice = categorias.length - 1;
+    const ativo = obterCentavos(ativos[indice]);
+    const passivo = obterCentavos(passivos[indice]);
+    const total = ativo + passivo;
+    if (ativo < 0 || passivo < 0 || !Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
+    return {
+        categoria: categorias[indice],
+        itens: [['Ativos', ativo], ['Passivos', passivo]].map(([nome, centavos]) => ({
+            nome, valor: centavos / 100, percentual: total ? centavos / total * 100 : 0,
+        })),
+        total: total / 100,
+        semDados: total === 0,
+    };
+}
+
 export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {
     const indice = patrimonios.length - 1;
     const anterior = obterCentavos(patrimonios[indice - 1]);

@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | **Patrimônio: Ativos vs. Passivos**, **Variação Patrimonial**, **Ativos** e **Passivos** compartilham contas, objetivos e transações do usuário no Firestore. Os outros nove gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os cinco primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos** e **Patrimônio: Ativos vs. Passivos** (comparação em rosca). Os outros oito gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -669,6 +669,30 @@ metas ou limites de crédito. Carregamento, erros e nova tentativa usam as consu
 compartilhadas. A troca de mês não abre novas leituras; a troca de usuário oculta
 os dados anteriores e ignora respostas atrasadas.
 
+### Comparação de ativos e passivos
+
+O quinto gráfico, **Patrimônio: Ativos vs. Passivos**, usa
+`calcularResultadoAtivoPassivo` para comparar os totais do mês selecionado que já
+foram calculados no primeiro gráfico. Os valores também coincidem com os totais
+das distribuições de Ativos e Passivos, sem somar novamente as transações ou abrir consultas.
+
+Os percentuais usam **ativos + passivos** como denominador, com passivos em valores
+absolutos. O centro da rosca identifica essa soma como **Ativos + Passivos**.
+Ela é a base da comparação proporcional; o patrimônio líquido continua sendo
+**ativos menos passivos**, apresentado no histórico. Por exemplo, R$ 100 em ativos
+e R$ 300 em passivos geram soma de R$ 400, participações de 25% e 75% e patrimônio
+líquido de -R$ 200.
+
+A rosca desenha somente fatias positivas, com ativos em azul e passivos em vermelho.
+A legenda mantém os dois valores e percentuais, inclusive quando um deles é zero.
+Se ambos forem zero, mostra a ausência de saldos e a soma zerada. Ativos e passivos
+iguais e maiores que zero continuam exibindo duas fatias de 50%, mesmo com patrimônio
+líquido zero. Os cálculos preservam centavos e rejeitam valores inválidos.
+
+Carregamento, erros e nova tentativa seguem as fontes compartilhadas. A troca de
+mês recalcula a comparação sem novas leituras; a troca de usuário oculta os dados
+anteriores e ignora respostas atrasadas.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -680,6 +704,7 @@ os dados anteriores e ignora respostas atrasadas.
 - `src/Componentes/VariacaoPatrimonial/`: comparação do patrimônio entre meses, diferença e controles das barras.
 - `src/Componentes/ResultadoAtivos/`: distribuição dos saldos positivos por categoria, total e percentuais.
 - `src/Componentes/ResultadoPassivos/`: distribuição dos saldos negativos por categoria, total e percentuais em valores absolutos.
+- `src/Componentes/ResultadoAtivoPassivo/`: comparação proporcional dos totais de ativos e passivos do mês.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -702,7 +727,7 @@ os dados anteriores e ignora respostas atrasadas.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, variação, distribuições de ativos e passivos e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -731,8 +756,10 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   positivos, centavos, classificação desconhecida, cadastros excluídos e período vazio.
 - Distribuição dos passivos: módulos negativos, cartões, dívidas, Outros, centavos,
   pagamentos, quitação, saldos positivos não compensados e total consistente com o patrimônio.
+- Comparação de ativos e passivos: totais compartilhados, soma em centavos, percentuais,
+  patrimônio líquido zero ou negativo, somente uma fatia, cores estáveis e período vazio.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os quatro gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os cinco gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -853,6 +880,9 @@ no cadastro; a distribuição deve acompanhar a classificação atual, sem novas
 No gráfico Passivos, compare a soma das categorias com os passivos do primeiro gráfico.
 Confira cartões, dívidas e outros saldos negativos, além da redução após pagamentos,
 quitação, mês sem dívidas e recuperação de uma falha de consulta.
+Na comparação em rosca, confira os dois valores com as distribuições de Ativos e
+Passivos e os percentuais sobre a soma dos dois. Verifique o rótulo Ativos + Passivos
+no centro, somente ativos, somente passivos e um período com os dois totais zerados.
 
 ## Publicação
 
@@ -869,5 +899,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos quatro primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos cinco primeiros gráficos de Resultados também
 no endereço publicado.
