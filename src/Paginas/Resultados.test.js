@@ -10,7 +10,6 @@ jest.mock("../services/contasService", () => ({ observarContas: jest.fn() }));
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarHistoricoTransacoes: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories, labels: props.options.labels, cores: props.options.colors })}</div>);
-jest.mock("../Componentes/VariacaoSaldoInvestimentos", () => () => null);
 jest.mock("../Componentes/ControleInvestimentos", () => () => null);
 jest.mock("../Componentes/CarteiraInvestimentos", () => () => null);
 jest.mock("../Componentes/RendimentosMoeda", () => () => null);
@@ -111,6 +110,8 @@ test.each(["contas", "investimentos", "transacoes"])("falha em %s esconde totais
     expect(container.querySelector('.resultado-ativo-passivo .legenda-categorias')).toBeNull();
     expect(container.querySelector('.saldo-investimentos [role="alert"]').textContent).toContain('acesso');
     expect(container.querySelector('.saldo-investimentos .legenda')).toBeNull();
+    expect(container.querySelector('.variacao-saldo-investimentos [role="alert"]').textContent).toContain('acesso');
+    expect(container.querySelector('.variacao-saldo-investimentos .legenda')).toBeNull();
     expect(container.querySelector('[role="alert"]').textContent).toContain("acesso");
     await act(async () => container.querySelector('.estado-patrimonio button').click());
     expect(container.textContent).toContain("Carregando");
@@ -128,6 +129,7 @@ test("erro de cálculo não vira zero; após recuperação, lista vazia apresent
     expect(container.querySelector('.resultado-passivos [role="alert"]').textContent).toContain('valor inválido');
     expect(container.querySelector('.resultado-ativo-passivo [role="alert"]').textContent).toContain('valor inválido');
     expect(container.querySelector('.saldo-investimentos [role="alert"]').textContent).toContain('valor inválido');
+    expect(container.querySelector('.variacao-saldo-investimentos [role="alert"]').textContent).toContain('valor inválido');
     expect(graficoComparacao()).toBeNull();
     await act(async () => fontes.transacoes[0].receber(transacoes(0)));
     expect(valores()).toEqual([0, 0, 0]);
@@ -293,9 +295,11 @@ test('comparação patrimonial compartilha os totais, mantém cores com uma úni
     expect(dadosResumo().series).toEqual([100]);
 });
 
-test('saldo dos investimentos compartilha histórico, classificação e recuperação, com controles isolados por mês e usuário', async () => {
+test('histórico e variação dos investimentos compartilham dados e recuperação, com controles isolados por gráfico, mês e usuário', async () => {
     const saldo = () => container.querySelector('.saldo-investimentos');
     const dadosSaldo = () => JSON.parse(saldo().querySelector('[data-testid="grafico"]').textContent);
+    const variacao = () => container.querySelector('.variacao-saldo-investimentos');
+    const valoresVariacao = () => JSON.parse(variacao().querySelector('[data-testid="grafico"]').textContent).series.map(item => item.data[0]);
     const registros = [
         { date: new Date(2026, 8, 1).toISOString(), amount: 100, outgoingType: 'create', incomingType: 'account', inID: 'c' },
         { date: new Date(2026, 8, 1).toISOString(), amount: 200, outgoingType: 'create', incomingType: 'investment', inID: 'i' },
@@ -305,33 +309,49 @@ test('saldo dos investimentos compartilha histórico, classificação e recupera
     await act(async () => fontes.transacoes[0].receber(registros));
     expect(saldo().textContent).toContain('Carregando investimentos');
     expect(saldo().querySelector('[data-testid="grafico"]')).toBeNull();
+    expect(variacao().querySelector('[data-testid="grafico"]')).toBeNull();
     await act(async () => {
         fontes.contas[0].receber([{ id: 'c', balance: 0 }]);
         fontes.investimentos[0].receber([{ id: 'i', current: 0, objective: 'Investimento' }]);
     });
     expect(dadosSaldo().series[0].data.slice(-2)).toEqual([200, 250]);
+    expect(valoresVariacao()).toEqual([200, 250]);
     expect(dadosSaldo().categorias).toHaveLength(12);
     expect(saldo().querySelector('.diferenca-investimentos').textContent).toContain('+25,00%');
+    expect(variacao().querySelector('.diferenca-investimentos').textContent).toBe(saldo().querySelector('.diferenca-investimentos').textContent);
     await act(async () => fontes.transacoes[0].receber([...registros, { ...registros[2], amount: 20, outgoingType: 'investment', incomingType: 'account', outID: 'i', inID: 'c' }]));
     expect(dadosSaldo().series[0].data.slice(-2)).toEqual([200, 230]);
+    expect(valoresVariacao()).toEqual([200, 230]);
     expect(saldo().textContent).toContain('+15,00%');
+    expect(variacao().textContent).toContain('+15,00%');
+    await act(async () => variacao().querySelector('[aria-label="Exibir Atual"]').click());
+    expect(valoresVariacao()).toEqual([200]);
+    expect(dadosSaldo().series[0].data.slice(-2)).toEqual([200, 230]);
     const legenda = saldo().querySelector('.legenda').textContent;
     await act(async () => saldo().querySelector('input').click());
     expect(saldo().querySelector('[data-testid="grafico"]')).toBeNull();
     expect(saldo().querySelector('.legenda').textContent).toBe(legenda);
+    expect(valoresVariacao()).toEqual([200]);
     await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
     expect(saldo().querySelector('input').checked).toBe(true);
     expect(dadosSaldo().series[0].data.slice(-2)).toEqual([0, 200]);
+    expect(valoresVariacao()).toEqual([0, 200]);
+    expect(variacao().querySelector('[aria-label="Exibir Atual"]').checked).toBe(true);
     expect(saldo().querySelector('.diferenca-investimentos').textContent).toContain('(—)');
+    expect(variacao().querySelector('.diferenca-investimentos').textContent).toContain('(—)');
     Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
     await act(async () => fontes.investimentos[0].receber([{ id: 'i', current: 0, objective: 'Bem' }]));
     expect(dadosSaldo().series[0].data).toEqual(Array(12).fill(0));
+    expect(valoresVariacao()).toEqual([0, 0]);
     await act(async () => fontes.contas[0].falhar({ code: 'unavailable' }));
-    await act(async () => saldo().querySelector('button').click());
+    expect(variacao().querySelector('.legenda')).toBeNull();
+    await act(async () => variacao().querySelector('button').click());
     await receber(1);
     expect(dadosSaldo().series[0].data).toEqual(Array(12).fill(0));
+    expect(valoresVariacao()).toEqual([0, 0]);
     Object.values(fontes).forEach(lista => expect(lista).toHaveLength(2));
     await act(async () => saldo().querySelector('input').click());
+    await act(async () => variacao().querySelector('[aria-label="Exibir Atual"]').click());
     await act(async () => root.render(<Resultados usuarioId="b" />));
     await act(async () => {
         fontes.transacoes[1].receber(registros);
@@ -340,9 +360,14 @@ test('saldo dos investimentos compartilha histórico, classificação e recupera
     expect(saldo().querySelector('[data-testid="grafico"]')).toBeNull();
     expect(saldo().querySelector('.legenda')).toBeNull();
     expect(saldo().querySelector('[role="alert"]')).toBeNull();
+    expect(variacao().querySelector('[data-testid="grafico"]')).toBeNull();
+    expect(variacao().querySelector('.legenda')).toBeNull();
+    expect(variacao().querySelector('[role="alert"]')).toBeNull();
     await receber(2);
     expect(dadosSaldo().series[0].data).toEqual(Array(12).fill(0));
     expect(saldo().querySelector('input').checked).toBe(true);
+    expect(valoresVariacao()).toEqual([0, 0]);
+    expect(variacao().querySelector('[aria-label="Exibir Atual"]').checked).toBe(true);
 });
 
 test("falha síncrona não deixa leituras anteriores abertas ao sair", async () => {

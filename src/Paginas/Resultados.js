@@ -160,7 +160,13 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro || saldoInvestimentos.erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <VariacaoSaldoInvestimentos />
+            <VariacaoSaldoInvestimentos
+                key={`variacao-investimentos-${periodo}`}
+                dados={saldoInvestimentos.dados}
+                carregando={!erro && carregando}
+                erro={erro || saldoInvestimentos.erro}
+                onTentarNovamente={tentarNovamente}
+            />
             <ControleInvestimentos />
             <CarteiraInvestimentos />
             <RendimentosMoeda />
