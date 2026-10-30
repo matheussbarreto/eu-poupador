@@ -9,8 +9,7 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/contasService", () => ({ observarContas: jest.fn() }));
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarHistoricoTransacoes: jest.fn() }));
-jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis.categories, cores: props.options.colors })}</div>);
-jest.mock("../Componentes/ResultadoAtivos", () => () => null);
+jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories, labels: props.options.labels, cores: props.options.colors })}</div>);
 jest.mock("../Componentes/ResultadoPassivos", () => () => null);
 jest.mock("../Componentes/ResultadoAtivoPassivo", () => () => null);
 jest.mock("../Componentes/SaldoInvestimentos", () => () => null);
@@ -157,6 +156,32 @@ test("comparação compartilha saldo negativo, nova tentativa e isolamento dos c
     expect(graficoComparacao()).toBeNull();
     await receber(2);
     expect(comparacao().querySelector('[aria-label="Exibir Atual"]').checked).toBe(true);
+});
+
+test('ativos compartilham as fontes, classificação, mês, recuperação e isolamento entre usuários', async () => {
+    const ativos = () => container.querySelector('.resultado-ativos');
+    const dadosAtivos = () => JSON.parse(ativos().querySelector('[data-testid="grafico"]').textContent);
+    await act(async () => root.render(<Resultados usuarioId="a" />));
+    expect(ativos().textContent).toContain('Carregando ativos');
+    await receber();
+    expect(dadosAtivos()).toMatchObject({ series: [100], labels: ['Outros'] });
+    await act(async () => fontes.contas[0].receber([{ id: 'c', type: 'Banco', balance: 0 }]));
+    expect(dadosAtivos()).toMatchObject({ series: [100], labels: ['Banco'], cores: ['#717171'] });
+    await act(async () => fontes.transacoes[0].receber(transacoes(200)));
+    expect(dadosAtivos().series[0]).toBe(valores()[0]);
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(ativos().textContent).toContain('Não há saldos positivos');
+    expect(ativos().querySelector('[data-testid="grafico"]')).toBeNull();
+    Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
+    await act(async () => fontes.contas[0].falhar({ code: 'unavailable' }));
+    expect(ativos().querySelector('[role="alert"]')).not.toBeNull();
+    await act(async () => ativos().querySelector('button').click());
+    await receber(1);
+    Object.values(fontes).forEach(lista => expect(lista).toHaveLength(2));
+    await act(async () => root.render(<Resultados usuarioId="b" />));
+    expect(ativos().textContent).toContain('Carregando ativos');
+    await act(async () => fontes.transacoes[1].receber(transacoes(999)));
+    expect(ativos().querySelector('[data-testid="grafico"]')).toBeNull();
 });
 
 test("falha síncrona não deixa leituras anteriores abertas ao sair", async () => {

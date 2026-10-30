@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,37 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test('ativos agrupam somente saldos positivos, com IDs separados e classificação atual, sem excluir histórico', () => {
+    const contasAtivos = [{ id: 'a', type: 'Caixa', isDeleted: true }, { id: 'b', type: 'Banco' }, { id: 'c', type: 'Cartão' }, { id: 'd', type: 'desconhecido' }];
+    const objetivos = [{ id: 'a', objective: 'Investimento' }, { id: 'b', objective: 'Bem' }, { id: 'c', objective: 'Dívida' }];
+    const saldos = [
+        { id: 'a', tipo: 'account', centavos: 10 }, { id: 'b', tipo: 'account', centavos: -500 },
+        { id: 'c', tipo: 'account', centavos: 20 }, { id: 'd', tipo: 'account', centavos: 30 },
+        { id: 'a', tipo: 'investment', centavos: 40 }, { id: 'b', tipo: 'investment', centavos: 50 },
+        { id: 'c', tipo: 'investment', centavos: 60 },
+    ];
+    const base = { meses: [{ categoria: 'Set/2026', saldos: [] }, { categoria: 'Out/2026', saldos }] };
+    const dados = calcularResultadoAtivos(base, contasAtivos, objetivos);
+    expect(dados.total).toBe(2.1);
+    expect(dados.total).toBe(calcularPatrimonioMensal(base).ativos[1]);
+    expect(dados.itens.map(({ nome, valor }) => [nome, valor])).toEqual([
+        ['Caixa', 0.1], ['Investimentos', 0.4], ['Bens', 0.5], ['Cartão', 0.2], ['Outros', 0.9],
+    ]);
+    expect(dados.itens.reduce((total, item) => total + item.percentual, 0)).toBeCloseTo(100);
+    expect(dados.categoria).toBe('Out/2026');
+});
+
+test.each([null, [], [{ id: 'c', tipo: 'account', centavos: -10 }], [{ id: 'c', tipo: 'account', centavos: 0 }]])('ativos sem saldos positivos não geram fatias nem percentuais inválidos (%j)', (saldos) => {
+    expect(calcularResultadoAtivos({ meses: [{ categoria: 'Set/2026', saldos }] }, contas, [])).toEqual({ categoria: 'Set/2026', itens: [], total: 0, semDados: true });
+});
+
+test('ativos rejeitam referência ausente e soma sem precisão segura', () => {
+    const base = (saldos) => ({ meses: [{ categoria: 'Out/2026', saldos }] });
+    expect(() => calcularResultadoAtivos(base([{ id: 'ausente', tipo: 'account', centavos: 1 }]), contas, [])).toThrow();
+    expect(() => calcularResultadoAtivos(base([{ id: 'c', tipo: 'account', centavos: NaN }]), contas, [])).toThrow();
+    expect(() => calcularResultadoAtivos(base([{ id: 'c', tipo: 'account', centavos: Number.MAX_SAFE_INTEGER }, { id: 'i', tipo: 'investment', centavos: 1 }]), contas, investimentos)).toThrow();
+});
 
 test.each([
     [100, 150, 50, 50], [100, 50, -50, -50], [100, 100, 0, 0],

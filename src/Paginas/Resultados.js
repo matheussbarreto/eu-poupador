@@ -17,7 +17,7 @@ import VariacaoRendimentosPercentual from "../Componentes/VariacaoRendimentosPer
 import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, obterMensagemErroResultados } from "../services/resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, obterMensagemErroResultados } from "../services/resultadosService";
 
 const Resultados = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -77,6 +77,14 @@ const Resultados = ({ usuarioId }) => {
             return { erro: obterMensagemErroResultados(erro) };
         }
     }, [patrimonio.dados]);
+    const ativos = useMemo(() => {
+        if (!saldosMensais.dados) return {};
+        try {
+            return { dados: calcularResultadoAtivos(saldosMensais.dados, fontes.contas, fontes.investimentos) };
+        } catch (erro) {
+            return { erro: obterMensagemErroResultados(erro) };
+        }
+    }, [saldosMensais.dados, fontes.contas, fontes.investimentos]);
     const erro = erroConsulta || saldosMensais.erro || patrimonio.erro;
     const tentarNovamente = () => {
         setTentativa((valor) => valor + 1);
@@ -100,7 +108,13 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro || variacaoPatrimonial.erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <ResultadoAtivos />
+            <ResultadoAtivos
+                key={`ativos-${periodo}`}
+                dados={ativos.dados}
+                carregando={!erro && carregando}
+                erro={erro || ativos.erro}
+                onTentarNovamente={tentarNovamente}
+            />
             <ResultadoPassivos />
             <ResultadoAtivoPassivo />
             <SaldoInvestimentos />
