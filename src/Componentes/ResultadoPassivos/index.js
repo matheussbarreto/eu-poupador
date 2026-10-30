@@ -1,36 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Chart from "react-apexcharts";
 import './ResultadoPassivos.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const ResultadoPassivos = () => {
-    const [chartData, setChartData] = useState({
-        categories: [
-            "Cartões de Crédito",
-            "Dívidas",
-        ],
-        values: [],
-    });
+const coresCategorias = new Map([
+    ['Cartões de Crédito', '#FF0000'], ['Dívidas', '#B50000'], ['Outros', '#B0B0B0'],
+]);
 
-    useEffect(() => {
-        setTimeout(() => {
-            setChartData({
-                categories: [
-                    "Cartões de Crédito",
-                    "Dívidas",
-                ],
-                values: [3000, 950],
-                // values: [100, 100, 100, 100, 100, 100, 100],
-            });
-        }, 1000);
-    }, []);
-
-    const despesasTotal = chartData.values.reduce((acc, val) => acc + val, 0);
+const ResultadoPassivos = ({ dados, carregando, erro, onTentarNovamente }) => {
+    const itens = dados?.itens || [];
+    const cores = itens.map((item) => coresCategorias.get(item.nome));
 
     const chartOptions = {
         chart: {
             type: "donut",
-            width: 350,
             fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif',
         },
         plotOptions: {
@@ -61,49 +44,21 @@ const ResultadoPassivos = () => {
                             fontSize: '14px',
                             fontWeight: 700,
                             color: '#373d3f',
-                            formatter: function (w) {
-                                const total = w.globals.seriesTotals.reduce((a, b) => {
-                                    return a + b
-                                }, 0);
-                                return formatCurrency(total)
+                            formatter: function () {
+                                return formatCurrency(dados?.total || 0)
                             }
                         }
                     },
                 },
             },
         },
-        title: {
-            text: "Passivos",
-            align: "left",
-            style: {
-                color: "var(--primary-color)",
-                fontSize: 20
-            },
-        },
-        labels: chartData.categories,
-        colors: ["#FF0000", "#B50000", "#B0B0B0"],
+        labels: itens.map((item) => item.nome),
+        colors: cores,
         dataLabels: {
             enabled: false,
             formatter: (val) => `${val.toFixed(2)}%`,
         },
-        legend: {
-            position: "bottom",
-            formatter: function (seriesName, opts) {
-                const value = chartData.values[opts.seriesIndex];
-                const percentage = ((value / despesasTotal) * 100).toFixed(2).replace('.', ',');
-                return ` 
-                    <span><strong>${seriesName}</strong><br/>Porcentagem</span>
-                    <span style="margin-left: auto; text-align:right;">
-                        <strong>${formatCurrency(value)}</strong>
-                        <br/>${percentage}%
-                    </span>`;
-            },
-            fontSize: '13px',
-            markers: {
-                size: 10,
-                offsetX: -3,
-            },
-        },
+        legend: { show: false },
         tooltip: {
             enabled: false,
             theme: false,
@@ -116,15 +71,7 @@ const ResultadoPassivos = () => {
                 breakpoint: 1300,
                 options: {
                     chart: {
-                        height: 400,
-                    },
-                },
-            },
-            {
-                breakpoint: 1150,
-                options: {
-                    chart: {
-                        height: 350,
+                        height: 270,
                     },
                     plotOptions: {
                         pie: {
@@ -134,7 +81,7 @@ const ResultadoPassivos = () => {
                                         fontSize: '14px',
                                     },
                                     total: {
-                                        fontSize: '12px',
+                                        fontSize: '11px',
                                     }
                                 },
                             },
@@ -145,8 +92,35 @@ const ResultadoPassivos = () => {
         ],
     };
     return (
-        <section className='resultado-passivos donut-chart'>
-            <Chart options={chartOptions} series={chartData.values} type="donut" height={450} />
+        <section className='resultado-passivos donut-chart' aria-busy={carregando}>
+            <h2>Passivos</h2>
+            {carregando || erro || !dados ? (
+                <div className="estado-categorias">
+                    {erro ? <>
+                        <p role="alert">{erro}</p>
+                        <button className="button" onClick={onTentarNovamente}>Tentar novamente</button>
+                    </> : <p role="status">Carregando passivos...</p>}
+                </div>
+            ) : dados.semDados ? (
+                <div className="estado-categorias">
+                    <p role="status">Não há saldos negativos no mês selecionado.</p>
+                    <p>Total: {formatCurrency(0)}</p>
+                </div>
+            ) : <>
+                <Chart options={chartOptions} series={itens.map((item) => item.valor)} type="donut" height={300} />
+                <ul className="legenda-categorias" aria-label="Passivos por categoria">
+                    {itens.map((item, indice) => (
+                        <li key={item.nome}>
+                            <span className="cor-categoria" style={{ backgroundColor: cores[indice] }} aria-hidden="true" />
+                            <span className="nome-categoria"><strong>{item.nome}</strong><br />Porcentagem</span>
+                            <span className="valor-categoria">
+                                <strong>{formatCurrency(item.valor)}</strong><br />
+                                {item.percentual.toFixed(2).replace('.', ',')}%
+                            </span>
+                        </li>
+                    ))}
+                </ul>
+            </>}
         </section>
     )
 }

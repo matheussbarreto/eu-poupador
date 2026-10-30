@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,56 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test('passivos agrupam módulos negativos, mantêm IDs separados, centavos e histórico de cadastros excluídos', () => {
+    const contasPassivos = [{ id: 'a', type: 'Cartão', isDeleted: true }, { id: 'b', type: 'Cartão' }, { id: 'c', type: 'Banco' }, { id: 'd', type: 'Cartão' }];
+    const objetivos = [{ id: 'a', objective: 'Dívida' }, { id: 'b', objective: 'Dívida' }, { id: 'c', objective: 'Bem' }];
+    const saldos = [
+        { id: 'a', tipo: 'account', centavos: -10 }, { id: 'b', tipo: 'account', centavos: -20 },
+        { id: 'c', tipo: 'account', centavos: -30 }, { id: 'd', tipo: 'account', centavos: 999 },
+        { id: 'a', tipo: 'investment', centavos: -40 }, { id: 'b', tipo: 'investment', centavos: -50 },
+        { id: 'c', tipo: 'investment', centavos: -60 },
+    ].map(Object.freeze);
+    const base = { meses: [{ categoria: 'Set/2026', saldos: null }, { categoria: 'Out/2026', saldos: Object.freeze(saldos) }] };
+    const dados = calcularResultadoPassivos(base, contasPassivos, objetivos);
+    expect(dados.total).toBe(2.1);
+    expect(dados.total).toBe(calcularPatrimonioMensal(base).passivos[1]);
+    expect(dados.itens.map(({ nome, valor }) => [nome, valor])).toEqual([
+        ['Cartões de Crédito', 0.3], ['Dívidas', 0.9], ['Outros', 0.9],
+    ]);
+    expect(dados.itens.reduce((total, item) => total + item.percentual, 0)).toBeCloseTo(100);
+    expect(dados.categoria).toBe('Out/2026');
+});
+
+test('passivos usam a posição do mês e pagamentos reduzem a dívida sem compensar outros saldos positivos', () => {
+    const lancamentos = [...criacoes, transacao(250, 'account', 'investment', 'c', 'd')];
+    const dados = calcularResultadoPassivos(calcular(lancamentos), contas, investimentos);
+    expect(dados.itens).toEqual([{ nome: 'Dívidas', valor: 750, percentual: 100 }]);
+    const anterior = calcularResultadoPassivos(calcular(lancamentos, contas, investimentos, new Date(2026, 8, 1)), contas, investimentos);
+    expect(anterior.total).toBe(1000);
+    expect(calcularResultadoPassivos(calcular([...lancamentos, transacao(750, 'account', 'investment', 'c', 'd')]), contas, investimentos).semDados).toBe(true);
+});
+
+test('passivos sem classificação reconhecida permanecem em Outros, sem adivinhar pelo nome', () => {
+    const base = { meses: [{ categoria: 'Out/2026', saldos: [
+        { id: 'c', tipo: 'account', centavos: -100 }, { id: 'i', tipo: 'investment', centavos: -100 },
+    ] }] };
+    expect(calcularResultadoPassivos(base, [{ id: 'c', nome: 'Cartão' }], [{ id: 'i', objective: 'Investimento', nome: 'Dívida' }]).itens)
+        .toEqual([{ nome: 'Outros', valor: 2, percentual: 100 }]);
+});
+
+test.each([null, [], [{ id: 'c', tipo: 'account', centavos: 10 }], [{ id: 'c', tipo: 'account', centavos: 0 }]])('passivos sem saldos negativos não geram fatias (%j)', (saldos) => {
+    expect(calcularResultadoPassivos({ meses: [{ categoria: 'Set/2026', saldos }] }, contas, [])).toEqual({ categoria: 'Set/2026', itens: [], total: 0, semDados: true });
+});
+
+test('passivos rejeitam referência ausente, valores inválidos e soma sem precisão segura', () => {
+    const base = (saldos) => ({ meses: [{ categoria: 'Out/2026', saldos }] });
+    expect(() => calcularResultadoPassivos(base([{ id: 'ausente', tipo: 'account', centavos: -1 }]), contas, [])).toThrow();
+    for (const centavos of [NaN, Infinity, -1.5, '-100']) {
+        expect(() => calcularResultadoPassivos(base([{ id: 'c', tipo: 'account', centavos }]), contas, [])).toThrow();
+    }
+    expect(() => calcularResultadoPassivos(base([{ id: 'c', tipo: 'account', centavos: -Number.MAX_SAFE_INTEGER }, { id: 'i', tipo: 'investment', centavos: -1 }]), contas, investimentos)).toThrow();
+});
 
 test('ativos agrupam somente saldos positivos, com IDs separados e classificação atual, sem excluir histórico', () => {
     const contasAtivos = [{ id: 'a', type: 'Caixa', isDeleted: true }, { id: 'b', type: 'Banco' }, { id: 'c', type: 'Cartão' }, { id: 'd', type: 'desconhecido' }];

@@ -149,6 +149,34 @@ export function calcularResultadoAtivos({ meses }, contas, investimentos) {
     };
 }
 
+export function calcularResultadoPassivos({ meses }, contas, investimentos) {
+    const cadastros = new Map([
+        ...contas.map((item) => [`account/${item.id}`, item.type]),
+        ...investimentos.map((item) => [`investment/${item.id}`, item.objective]),
+    ]);
+    const grupos = new Map([['Cartões de Crédito', 0], ['Dívidas', 0], ['Outros', 0]]);
+    const mes = meses[meses.length - 1];
+    let total = 0;
+    (mes.saldos || []).forEach(({ id, tipo, centavos }) => {
+        if (!Number.isSafeInteger(centavos)) falhar('app/movimentacao-invalida');
+        if (centavos >= 0) return;
+        const chave = `${tipo}/${id}`;
+        if (!cadastros.has(chave)) falhar('app/referencia-ausente');
+        const classificacao = cadastros.get(chave);
+        const nome = tipo === 'account' && classificacao === 'Cartão' ? 'Cartões de Crédito' :
+            tipo === 'investment' && classificacao === 'Dívida' ? 'Dívidas' : 'Outros';
+        grupos.set(nome, grupos.get(nome) - centavos);
+        total -= centavos;
+        if (!Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
+    });
+    return {
+        categoria: mes.categoria,
+        itens: Array.from(grupos, ([nome, centavos]) => ({ nome, valor: centavos / 100, percentual: total ? centavos / total * 100 : 0 })).filter((item) => item.valor > 0),
+        total: total / 100,
+        semDados: total === 0,
+    };
+}
+
 export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {
     const indice = patrimonios.length - 1;
     const anterior = obterCentavos(patrimonios[indice - 1]);

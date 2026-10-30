@@ -1,12 +1,52 @@
-/* .resultado-passivos {
-    width: 32.5%;
+.resultado-passivos .estado-categorias {
+    min-height: 500px;
 }
 
-.resultado-passivos .apexcharts-legend-series {
+.resultado-passivos .estado-categorias p {
+    margin: 16px 0;
+}
+
+.resultado-passivos .legenda-categorias {
     width: 80%;
+    margin: 10px auto 0;
+    font-size: 13px;
+    line-height: 17px;
 }
 
-.resultado-passivos .apexcharts-legend-text {
+.resultado-passivos .legenda-categorias li {
     display: flex;
-    width: 100%;
-} */
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.resultado-passivos .cor-categoria {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.resultado-passivos .nome-categoria {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.resultado-passivos .valor-categoria {
+    flex-shrink: 0;
+    padding-left: 12px;
+    text-align: right;
+}
+
+@media only screen and (max-width: 1330px) {
+    .resultado-passivos .legenda-categorias {
+        width: 95%;
+    }
+}
+
+@media only screen and (max-width: 1300px) {
+    .resultado-passivos .estado-categorias {
+        min-height: 470px;
+    }
+}
