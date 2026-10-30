@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os cinco primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos** e **Patrimônio: Ativos vs. Passivos** (comparação em rosca). Os outros oito gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os seis primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca) e **Saldo dos Investimentos**. Os outros sete gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -693,6 +693,32 @@ Carregamento, erros e nova tentativa seguem as fontes compartilhadas. A troca de
 mês recalcula a comparação sem novas leituras; a troca de usuário oculta os dados
 anteriores e ignora respostas atrasadas.
 
+### Saldo dos investimentos
+
+O sexto gráfico, **Saldo dos Investimentos**, usa `calcularSaldoInvestimentos` sobre
+a base mensal já reconstruída. Mostra os 12 meses até o selecionado, somando os
+saldos das entidades da coleção `investments` cujo `objective` atual é Investimento.
+Contas, bens, dívidas e objetivos sem essa classificação ficam fora dessa série.
+
+- Usa o saldo reconstruído por transações, preservando centavos e posições negativas.
+  Aportes aumentam o saldo, resgates o reduzem e transferências entre investimentos
+  mantêm o total. Os registros de criação entram uma única vez.
+- Meses anteriores ao primeiro registro aparecem como zero. Meses sem movimentos
+  mantêm a posição anterior, incluindo saldos originados antes da janela de 12 meses.
+  Um período sem investimentos mostra a linha e o resumo zerados. Falhas e dados
+  inválidos continuam gerando erro.
+- Usa a classificação atual, pois não há histórico de classificação. Cadastros
+  excluídos mantêm seus saldos históricos provenientes de transações ativas, seguindo
+  a regra compartilhada do patrimônio. Lançamentos excluídos e futuros não são somados.
+- O resumo compara o mês selecionado com o anterior: diferença igual a **atual menos
+  anterior** e percentual igual a **diferença ÷ módulo do anterior × 100**. Base zero
+  exibe `—` no percentual. A diferença representa a mudança do saldo, incluindo
+  aportes e resgates. O cálculo da variação é compartilhado com Variação Patrimonial.
+
+O controle Atual permite ocultar e reexibir a linha sem alterar os totais. Trocar de
+mês ou usuário restaura sua visibilidade. Carregamento, erros e nova tentativa usam
+as mesmas fontes da página; trocar de mês não abre consultas adicionais.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -705,6 +731,7 @@ anteriores e ignora respostas atrasadas.
 - `src/Componentes/ResultadoAtivos/`: distribuição dos saldos positivos por categoria, total e percentuais.
 - `src/Componentes/ResultadoPassivos/`: distribuição dos saldos negativos por categoria, total e percentuais em valores absolutos.
 - `src/Componentes/ResultadoAtivoPassivo/`: comparação proporcional dos totais de ativos e passivos do mês.
+- `src/Componentes/SaldoInvestimentos/`: histórico mensal dos investimentos e resumo da variação entre os dois últimos meses.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -727,7 +754,7 @@ anteriores e ignora respostas atrasadas.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -758,8 +785,11 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   pagamentos, quitação, saldos positivos não compensados e total consistente com o patrimônio.
 - Comparação de ativos e passivos: totais compartilhados, soma em centavos, percentuais,
   patrimônio líquido zero ou negativo, somente uma fatia, cores estáveis e período vazio.
+- Saldo dos investimentos: seleção por coleção e classificação, aportes, resgates,
+  transferências internas, exclusões, datas futuras, histórico anterior à janela,
+  saldos negativos, variação, meses zerados e controle de visibilidade.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os cinco gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os seis gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -883,6 +913,10 @@ quitação, mês sem dívidas e recuperação de uma falha de consulta.
 Na comparação em rosca, confira os dois valores com as distribuições de Ativos e
 Passivos e os percentuais sobre a soma dos dois. Verifique o rótulo Ativos + Passivos
 no centro, somente ativos, somente passivos e um período com os dois totais zerados.
+No Saldo dos Investimentos, confira os 12 meses, o saldo atual e o anterior. Teste
+aporte, resgate e transferência entre investimentos, além da troca de classificação
+de um objetivo. Verifique o percentual com base zero ou negativa e o controle que
+oculta a linha mantendo o resumo. Um mês sem movimentos deve manter o saldo anterior.
 
 ## Publicação
 
@@ -899,5 +933,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos cinco primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos seis primeiros gráficos de Resultados também
 no endereço publicado.

@@ -1,92 +1,66 @@
-import React from "react";
+import React, { useState } from "react";
 import Chart from "react-apexcharts";
 import './SaldoInvestimentos.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const SaldoInvestimentos = () => {
-
-  const categories = ["Jun/2024", "Jul/2024", "Ago/2024", "Set/2024", "Out/2024", "Nov/2024", "Dez/2024", "Jan/2025"];
-  const totalCategories = categories.length;
-  const categoriesToShow = 11;
-
+const SaldoInvestimentos = ({ dados, carregando, erro, onTentarNovamente }) => {
+  const [exibirSaldo, setExibirSaldo] = useState(true);
+  const percentual = dados?.diferencaPercentual == null ? null : Number(dados.diferencaPercentual.toFixed(2));
+  const textoPercentual = percentual === null ? '—' :
+    (dados.diferencaPercentual >= 0 ? '+' : '') + percentual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  const chartSeries = [{ name: "Investimentos", data: dados?.saldos || [] }];
   const chartOptions = {
     chart: {
       type: "line",
-      toolbar: {
-        show: false, // Ocultar as opções de ferramentas, caso deseje
-      },
+      toolbar: { show: false },
+      zoom: { enabled: false },
       fontFamily: '"Segoe UI", "Cocogoose", sans-serif',
-      fontWeight: '400',
     },
-    dataLabels: {
-      enabled: false, // Habilitar os rótulos de dados
-    },
-    stroke: {
-      curve: "straight",
-    },
-    xaxis: {
-      categories: categories, // Exemplo de categorias
-      min: totalCategories > categoriesToShow ? totalCategories - categoriesToShow : 1,
-      max: totalCategories,
-    },
-    yaxis: {
-      labels: {
-        formatter: function (val, index) {
-          return formatCurrency(val, 0);
-        }
-      },
-      min: 0,
-    },
+    dataLabels: { enabled: false },
+    stroke: { curve: "straight" },
+    xaxis: { categories: dados?.categorias || [] },
+    yaxis: { labels: { formatter: (valor) => formatCurrency(valor, 0) } },
+    tooltip: { y: { formatter: (valor) => valor == null ? "—" : formatCurrency(valor) } },
     colors: ["#FF9900"],
-    legend: {
-      show: false,
-    },
-    markers: {
-      size: 5,
-      shape: 'circle',
-    },
+    legend: { show: false },
+    markers: { size: 5, shape: 'circle' },
   };
 
-  // Dados do gráfico
-  const chartSeries = [
-    {
-      name: "Ativos",
-      data: [30000, 30500, 31000, 31500, 32000, 32500, 33000, 33500],
-    },
-  ];
-
   return (
-    <section className='saldo-investimentos'>
-      <h2 className="">Saldo dos Investimentos</h2>
-      <div className="legenda">
-        <span className="legenda-serie ">
-          <span className="pretty">
-            <input type="checkbox" />
-            <span className="state yellow">
-              <label>
-                Atual
-              </label>
+    <section className="saldo-investimentos" aria-busy={Boolean(carregando)}>
+      <h2>Saldo dos Investimentos</h2>
+      {carregando || erro || !dados ? (
+        <div className="estado-saldo-investimentos">
+          {erro ? <>
+            <p role="alert">{erro}</p>
+            <button className="button" onClick={onTentarNovamente}>Tentar novamente</button>
+          </> : <p role="status">Carregando investimentos...</p>}
+        </div>
+      ) : <>
+        <div className="legenda">
+          <span className="legenda-serie" title={dados.categoria}>
+            <span className="pretty">
+              <input type="checkbox" aria-label="Exibir saldo dos investimentos" checked={exibirSaldo} onChange={() => setExibirSaldo((anterior) => !anterior)} />
+              <span className="state yellow"><label>Atual</label></span>
+            </span>
+            <span>{formatCurrency(dados.atual)}</span>
+          </span>
+          <span className="legenda-serie" title={dados.categoriaAnterior}>
+            <span className="pretty diferenca">Mês Anterior</span>
+            <span>{formatCurrency(dados.anterior)}</span>
+          </span>
+          <span className="legenda-serie diferenca-investimentos">
+            <span className="pretty diferenca">Diferença</span>
+            <span style={{ color: dados.diferenca < 0 ? 'var(--red-color)' : 'var(--primary-color)' }}>
+              {(dados.diferenca >= 0 ? '+' : '') + formatCurrency(dados.diferenca)}<br />({textoPercentual})
             </span>
           </span>
-          <span>{formatCurrency(33500)}</span>
-        </span>
-        <span className="legenda-serie ">
-          <span className="pretty diferenca">Mês Anterior</span>
-          <span>{formatCurrency(33000)}</span>
-        </span>
-        <span className="legenda-serie ">
-          <span className="pretty diferenca">Diferença</span>
-          <span style={{ color: 'var(--primary-color)' }}>{formatCurrency(500)}<br />({1.49}%)</span>
-        </span>
-      </div>
-      <Chart
-        options={chartOptions}
-        series={chartSeries}
-        type="line"
-        height={300}
-      />
+        </div>
+        {exibirSaldo ? <Chart options={chartOptions} series={chartSeries} type="line" height={300} /> :
+          <p className="estado-saldo-investimentos" role="status">Selecione a série para visualizar.</p>}
+      </>}
     </section>
-  )
-}
+  );
+};
 
 export default SaldoInvestimentos;

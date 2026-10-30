@@ -193,10 +193,32 @@ export function calcularResultadoAtivoPassivo({ categorias, ativos, passivos }) 
     };
 }
 
+export function calcularSaldoInvestimentos({ meses }, investimentos) {
+    const cadastros = new Map(investimentos.map((item) => [item.id, item]));
+    const categorias = meses.map((mes) => mes.categoria);
+    const saldos = meses.map((mes) => {
+        let total = 0;
+        (mes.saldos || []).forEach(({ id, tipo, centavos }) => {
+            if (tipo !== 'investment') return;
+            if (!cadastros.has(id)) falhar('app/referencia-ausente');
+            if (cadastros.get(id).objective !== 'Investimento') return;
+            if (!Number.isSafeInteger(centavos)) falhar('app/movimentacao-invalida');
+            total += centavos;
+            if (!Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
+        });
+        return total / 100;
+    });
+    return { categorias, saldos, ...calcularVariacaoMensal(categorias, saldos) };
+}
+
 export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {
-    const indice = patrimonios.length - 1;
-    const anterior = obterCentavos(patrimonios[indice - 1]);
-    const atual = obterCentavos(patrimonios[indice]);
+    return calcularVariacaoMensal(categorias, patrimonios);
+}
+
+function calcularVariacaoMensal(categorias, valores) {
+    const indice = valores.length - 1;
+    const anterior = obterCentavos(valores[indice - 1]);
+    const atual = obterCentavos(valores[indice]);
     const diferenca = atual - anterior;
     if (!Number.isSafeInteger(diferenca)) falhar("app/movimentacao-invalida");
     return {

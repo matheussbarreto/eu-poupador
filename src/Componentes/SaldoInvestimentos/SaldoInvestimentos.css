@@ -1,5 +1,6 @@
 .saldo-investimentos {
     width: 70%;
+    min-width: 0;
 }
 
 .saldo-investimentos .legenda {
@@ -7,11 +8,27 @@
 }
 
 .saldo-investimentos .legenda-serie {
-    min-width: 290px; 
+    width: 320px;
+    max-width: 100%;
+    min-width: 0;
+    gap: 8px;
 }
 
 .saldo-investimentos .legenda-serie:last-child {
     font-weight: bold;
+}
+
+.saldo-investimentos .legenda-serie > span:last-child {
+    overflow-wrap: anywhere;
+}
+
+.saldo-investimentos .estado-saldo-investimentos {
+    min-height: 300px;
+    padding-top: 20px;
+}
+
+.saldo-investimentos .estado-saldo-investimentos .button {
+    margin-top: 16px;
 }
 
 @media only screen and (max-width: 1300px) {
