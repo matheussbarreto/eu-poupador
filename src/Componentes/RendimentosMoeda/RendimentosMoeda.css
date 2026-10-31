@@ -1,6 +1,6 @@
 .rendimentos-moeda {
-    /* flex: 3; */
     width: 70%;
+    min-width: 0;
 }
 
 .rendimentos-moeda .legenda {
@@ -9,19 +9,24 @@
 
 .rendimentos-moeda .legenda-serie {
     display: flex;
-    min-width: 290px;
-}
-/* 
-.rendimentos-moeda .legenda-serie:last-child {
-    font-weight: bold;
-} */
-
-.rendimentos-moeda .apexcharts-legend :last-child .apexcharts-legend-text {
-    font-weight: 700 !important;
+    min-width: 0;
+    width: 340px;
+    max-width: 100%;
+    gap: 8px;
 }
 
-.rendimentos-moeda .legenda-serie span:last-child {
-    width: 45%;
+.rendimentos-moeda .estado-rendimentos {
+    min-height: 310px;
+    padding-top: 20px;
+}
+
+.rendimentos-moeda .estado-rendimentos button {
+    margin-top: 16px;
+}
+
+.rendimentos-moeda .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
 }
 
 @media only screen and (max-width: 1300px) {

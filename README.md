@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os nove primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos** e **Carteira de Investimentos**. Os outros quatro gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os dez primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos**, **Carteira de Investimentos** e **Rendimentos (R$)**. Os outros três gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -590,9 +590,14 @@ Contas sem criação e com cadastro zerado começam em zero, conforme o modelo v
 Saldo cadastrado não zero sem origem, objetivo movimentado sem origem e criações
 duplicadas geram erro em vez de estimar o saldo inicial.
 
-Ainda não há interpretação confirmada dos lançamentos `update` (rendimento ou ajuste
-absoluto). Se eles existirem até o período calculado, o gráfico informa que não foi
-possível calcular o patrimônio com esses ajustes, em vez de ignorá-los silenciosamente.
+Conforme o guia, `outgoingType === "update"` representa um rendimento creditado:
+`amount` é acrescentado uma única vez à conta ou ao objetivo de destino. Esses créditos
+também ficam separados por entidade e mês na base compartilhada para os gráficos de
+rendimentos. Valores negativos ou inválidos são rejeitados.
+
+Já `incomingType === "update"` representa um ajuste de saldo cuja interpretação ainda
+não foi confirmada. Se existir até o período calculado, a página informa que não foi
+possível calcular o patrimônio com esse ajuste, em vez de ignorá-lo ou estimar seu efeito.
 
 O componente mantém as cores e a legenda com os totais do mês selecionado, permite
 ocultar séries pela legenda e trata carregamento, erro e nova tentativa. A nova tentativa
@@ -794,6 +799,38 @@ A carteira acompanha as atualizações das fontes e a recuperação dos outros
 gráficos. Ocultar barras no controle não altera sua distribuição. Erros e troca
 de usuário escondem os dados anteriores; trocar de mês não abre novas consultas.
 
+### Rendimentos em reais
+
+O décimo gráfico, **Rendimentos (R$)**, mostra os rendimentos realizados em cada um
+dos 12 meses até o selecionado. A previsão cadastrada não entra no valor realizado.
+
+Durante a reconstrução dos saldos, `calcularSaldosMensais` separa os créditos do mês
+em `meses[].rendimentos`. `calcularRendimentosMensais` soma somente aqueles destinados
+à coleção de investimentos e classificados atualmente como `Investimento`, usando
+o mesmo filtro dos gráficos anteriores. Não há novas consultas nem uma nova leitura
+do histórico de transações para cada gráfico.
+
+- Entram os valores de `outgoingType === "update"` e `incomingType === "investment"`,
+  conforme o contrato do guia. Créditos em contas, bens e dívidas não entram nesta série.
+- Criações, receitas direcionadas ao investimento, aportes, resgates, transferências,
+  metas e previsões de rendimento não contam como rendimento realizado.
+- O total de cada mês é independente. Um mês sem créditos exibe zero, mesmo que
+  exista saldo investido ou que o mês anterior tenha rendido.
+- Créditos anteriores à janela continuam compondo o saldo histórico, mas não entram
+  no primeiro mês visível. Transações excluídas e futuras são desconsideradas.
+- A soma é feita em centavos, com validação de datas, valores e referências. Cadastros
+  removidos preservam seus créditos históricos, seguindo os demais gráficos.
+
+A legenda mostra o rendimento do mês selecionado. Seu controle oculta ou reexibe a
+linha sem alterar o valor; trocar de mês ou usuário restaura a visibilidade. A página
+compartilha os estados de carregamento, erro e nova tentativa com os outros gráficos.
+O resultado do cálculo também contém a comparação com o mês anterior para reutilização.
+
+Na consulta administrativa de 31/10/2026, a conta autorizada não tinha transações
+`update`. O gráfico fica zerado nessa situação, conforme a regra escolhida pelo usuário.
+O tratamento de créditos foi verificado com dados simulados segundo o guia; o primeiro
+crédito real deve ser comparado com o lançamento e o saldo apresentados no aplicativo.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -810,6 +847,7 @@ de usuário escondem os dados anteriores; trocar de mês não abre novas consult
 - `src/Componentes/VariacaoSaldoInvestimentos/`: comparação em barras dos mesmos saldos e controles de visibilidade.
 - `src/Componentes/ControleInvestimentos/`: comparação mensal por investimento, resumo, controles e altura conforme a quantidade de posições.
 - `src/Componentes/CarteiraInvestimentos/`: distribuição dos saldos positivos por investimento, valores e percentuais.
+- `src/Componentes/RendimentosMoeda/`: histórico de rendimentos realizados por mês e controle da linha.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -832,7 +870,7 @@ de usuário escondem os dados anteriores; trocar de mês não abre novas consult
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo, controle e carteira dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos e créditos mensais, patrimônio, investimentos, rendimentos, distribuições, comparações e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -874,8 +912,11 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 - Carteira de investimentos: reutilização do controle, saldos positivos, centavos,
   percentuais, posições negativas ou zeradas, uma fatia, nomes repetidos e cores
   estáveis por ID, com atualização, recuperação e isolamento entre usuários.
+- Rendimentos em reais: créditos por mês e investimento, reflexo único no saldo,
+  exclusão de aportes, resgates e previsões, centavos, virada do ano, limites locais,
+  créditos fora da janela, reclassificação, zeros e controle da linha.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os nove gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os dez gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -1015,6 +1056,11 @@ Na Carteira de Investimentos, compare cada fatia com o saldo atual positivo do
 controle e confira os percentuais sobre a soma desses saldos. Teste uma posição,
 resgate total, nomes longos ou repetidos e renomeação sem mudança de cor. Havendo
 saldo negativo, ele permanece no controle e não integra o total positivo da rosca.
+Em Rendimentos (R$), confira cada mês com os créditos realizados no aplicativo.
+Uma previsão sem crédito deve continuar zerada. Teste um crédito seguido de um mês
+sem rendimento, um aporte e um resgate; apenas o crédito altera a série de rendimentos,
+enquanto os três movimentos alteram o saldo do investimento. Confira também a exclusão
+do crédito, a troca de mês e a recuperação após falha.
 
 ## Publicação
 
@@ -1031,5 +1077,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos nove primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos dez primeiros gráficos de Resultados também
 no endereço publicado.

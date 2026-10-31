@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, calcularCarteiraInvestimentos, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, calcularCarteiraInvestimentos, calcularRendimentosMensais, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,70 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test('rendimentos somam apenas créditos do mês em investimentos e atualizam os saldos uma vez', () => {
+    const objetivos = [{ id: 'i', current: 200, objective: 'Investimento', rendimentoPrevisto: 999 },
+        { id: 'j', current: 100, objective: 'Investimento', isDeleted: true },
+        { id: 'b', current: 500, objective: 'Bem' }, { id: 'd', current: -1000, objective: 'Dívida' }];
+    const registros = [...criacoes,
+        transacao(100, 'create', 'investment', null, 'j', 8), transacao(500, 'create', 'investment', null, 'b', 8),
+        transacao(10, 'update', 'investment', null, 'i'), transacao(0.1, 'update', 'investment', null, 'i'),
+        transacao(0.2, 'update', 'investment', null, 'i'), transacao(20, 'update', 'investment', null, 'j'),
+        transacao(5, 'update', 'account', null, 'c'), transacao(7, 'update', 'investment', null, 'b'), transacao(8, 'update', 'investment', null, 'd'),
+        transacao(40, 'income', 'investment', null, 'i'), transacao(50, 'account', 'investment', 'c', 'i'),
+        transacao(20, 'investment', 'account', 'i', 'c'), transacao(5, 'investment', 'investment', 'i', 'j'),
+        { ...transacao(999, 'update', 'investment', null, 'i'), isDeleted: true },
+    ];
+    const copia = JSON.stringify(registros);
+    const base = calcular([...registros].reverse(), contas, objetivos);
+    expect(calcularRendimentosMensais(base, objetivos)).toMatchObject({ rendimentos: [...Array(11).fill(0), 30.3], atual: 30.3, anterior: 0, diferencaPercentual: null });
+    expect(calcularSaldoInvestimentos(base, objetivos).atual).toBe(400.3);
+    expect(base.meses[11].rendimentos).toContainEqual({ id: 'i', tipo: 'investment', centavos: 1030 });
+    expect(JSON.stringify(registros)).toBe(copia);
+});
+
+test('rendimentos não carregam valores de meses anteriores nem créditos anteriores à janela', () => {
+    const objetivos = [{ id: 'i', current: 100, objective: 'Investimento' }];
+    const registros = [transacao(100, 'create', 'investment', null, 'i', -4),
+        transacao(10, 'update', 'investment', null, 'i', -3), transacao(20, 'update', 'investment', null, 'i', 8)];
+    const base = calcular(registros, [], objetivos);
+    expect(calcularRendimentosMensais(base, objetivos)).toMatchObject({ rendimentos: [...Array(10).fill(0), 20, 0], atual: 0, anterior: 20, diferenca: -20, diferencaPercentual: -100 });
+    expect(calcularSaldoInvestimentos(base, objetivos).atual).toBe(130);
+    expect(calcularRendimentosMensais(calcular([], [], []), []).rendimentos).toEqual(Array(12).fill(0));
+});
+
+test('rendimentos respeitam os limites locais do mês e excluem créditos futuros', () => {
+    const objetivos = [{ id: 'i', current: 0, objective: 'Investimento' }];
+    const inicio = new Date(2026, 9, 1);
+    const registros = [transacao(0, 'create', 'investment', null, 'i', 7),
+        { ...transacao(10, 'update', 'investment', null, 'i'), date: new Date(inicio.getTime() - 1).toISOString() },
+        { ...transacao(20, 'update', 'investment', null, 'i'), date: inicio.toISOString() },
+        transacao(999, 'update', 'investment', null, 'i', 9, 30), transacao(999, 'update', 'investment', null, 'i', 10, 1)];
+    expect(calcularRendimentosMensais(calcular(registros, [], objetivos), objetivos).rendimentos.slice(-2)).toEqual([10, 20]);
+    expect(calcularRendimentosMensais(calcular(registros, [], objetivos, new Date(2026, 8, 1)), objetivos).atual).toBe(10);
+});
+
+test('rendimentos distinguem coleções, preservam a virada do ano e seguem reclassificação atual', () => {
+    const objetivos = [{ id: 'i', current: 0, objective: 'Investimento' }];
+    const registros = [transacao(0, 'create', 'investment', null, 'i', -2),
+        transacao(10, 'update', 'investment', null, 'i', -1), transacao(20, 'update', 'investment', null, 'i', 0),
+        transacao(999, 'update', 'account', null, 'i', 0)];
+    const base = calcular(registros, [{ id: 'i', balance: 0 }], objetivos, new Date(2026, 0, 1));
+    expect(calcularRendimentosMensais(base, objetivos)).toMatchObject({ categoria: 'Jan/2026', categoriaAnterior: 'Dez/2025', atual: 20, anterior: 10 });
+    expect(calcularRendimentosMensais(base, [{ ...objetivos[0], objective: 'Bem' }]).rendimentos).toEqual(Array(12).fill(0));
+});
+
+test('créditos inválidos e ajustes não viram rendimentos estimados ou resultados parciais', () => {
+    for (const amount of [-1, NaN, Infinity, '10']) {
+        expect(() => calcular([...criacoes, transacao(amount, 'update', 'investment', null, 'i')])).toThrow();
+    }
+    expect(() => calcular([...criacoes, transacao(10, 'update', 'investment', null, 'ausente')])).toThrow();
+    const objetivos = [{ id: 'i', objective: 'Investimento' }, { id: 'j', objective: 'Investimento' }];
+    const base = rendimentos => ({ meses: [{ categoria: 'Set/2026', rendimentos: [] }, { categoria: 'Out/2026', rendimentos }] });
+    expect(() => calcularRendimentosMensais(base([{ id: 'ausente', tipo: 'investment', centavos: 10 }]), objetivos)).toThrow();
+    expect(() => calcularRendimentosMensais(base([{ id: 'i', tipo: 'investment', centavos: -10 }]), objetivos)).toThrow();
+    expect(() => calcularRendimentosMensais(base([{ id: 'i', tipo: 'investment', centavos: Number.MAX_SAFE_INTEGER }, { id: 'j', tipo: 'investment', centavos: 1 }]), objetivos)).toThrow();
+});
 
 test('carteira reutiliza posições do controle, preservando IDs, nomes repetidos, ordem e centavos', () => {
     const controle = Object.freeze({ categoria: 'Out/2026', itens: Object.freeze([
@@ -394,7 +458,7 @@ test("apresenta zeros antes do primeiro registro, preservando a ausência de his
 });
 
 test("a seleção histórica não importa saldo, origem ou erro de ajuste do mês seguinte", () => {
-    const registros = [...criacoes, transacao(10, "update", "investment", null, "i")];
+    const registros = [...criacoes, transacao(10, "investment", "update", "i", null)];
     const dados = patrimonio(registros, contas, investimentos, new Date(2026, 8, 1));
     expect(dados.patrimonios[11]).toBe(200);
     expect(patrimonio(criacoes, contas, investimentos, new Date(2026, 7, 1)).semHistorico).toBe(true);
@@ -437,9 +501,9 @@ test.each([
     expect(() => patrimonio([{ ...transacao(100, "income", "account", "r", "c"), ...mudanca }], contas, [])).toThrow();
 });
 
-test.each(["incomingType", "outgoingType"])("ajuste não confirmado em %s produz erro explícito", (campo) => {
+test("ajuste de saldo no destino continua produzindo erro explícito", () => {
     try {
-        patrimonio([{ ...transacao(100, "income", "account", "r", "c"), [campo]: "update" }], contas, []);
+        patrimonio([transacao(100, "account", "update", "c", null)], contas, []);
         throw new Error("Deveria rejeitar o ajuste");
     } catch (erro) {
         expect(erro.code).toBe("app/ajuste-nao-interpretado");

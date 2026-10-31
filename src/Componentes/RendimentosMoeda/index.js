@@ -1,80 +1,52 @@
-import React from "react";
+import React, { useState } from "react";
 import Chart from "react-apexcharts";
 import './RendimentosMoeda.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const RendimentosMoeda = () => {
-
-  const categories = ["Jun/2024", "Jul/2024", "Ago/2024", "Set/2024", "Out/2024", "Nov/2024", "Dez/2024", "Jan/2025"];
-  const totalCategories = categories.length;
-  const categoriesToShow = 11;
-
+const RendimentosMoeda = ({ dados, carregando, erro, onTentarNovamente }) => {
+  const [exibirRendimentos, setExibirRendimentos] = useState(true);
   const chartOptions = {
     chart: {
       type: "line",
-      toolbar: {
-        show: false, // Ocultar as opções de ferramentas, caso deseje
-      },
+      toolbar: { show: false },
+      zoom: { enabled: false },
       fontFamily: '"Segoe UI", "Cocogoose", sans-serif',
-      fontWeight: '400',
     },
-    dataLabels: {
-      enabled: false, // Habilitar os rótulos de dados
-    },
-    stroke: {
-      curve: "monotoneCubic",
-    },
-    xaxis: {
-      categories: categories, // Exemplo de categorias
-      min: totalCategories > categoriesToShow ? totalCategories - categoriesToShow : 1,
-      max: totalCategories,
-    },
-    yaxis: {
-      labels: {
-        formatter: function (val, index) {
-          return formatCurrency(val, 0);
-        }
-      },
-      min: 0,
-    },
+    dataLabels: { enabled: false },
+    stroke: { curve: "straight" },
+    xaxis: { categories: dados?.categorias || [] },
+    yaxis: { labels: { formatter: (valor) => formatCurrency(valor, 0) } },
+    tooltip: { y: { formatter: (valor) => formatCurrency(valor) } },
     colors: ["#FF9900"],
-    legend: {
-      show: false,
-    },
-    markers: {
-      size: 5,
-      shape: 'circle',
-    },
+    legend: { show: false },
+    markers: { size: 5, shape: 'circle' },
   };
-
-  // Dados do gráfico
-  const chartSeries = [
-    {
-      name: "Rendimento Atual",
-      data: [300, 305, 300, 315, 300, 325, 330, 600],
-    },
-  ];
+  const chartSeries = [{ name: "Rendimento Atual", data: dados?.rendimentos || [] }];
 
   return (
-    <section className='rendimentos-moeda'>
-      <h2 className="">Rendimentos (R$)</h2>
-      <div className="legenda">
-        <span className="legenda-serie ">
-          <span className="pretty">
-            <input type="checkbox" />
-            <span className="state yellow"><label>Rendimento Atual</label></span>
+    <section className="rendimentos-moeda" aria-busy={Boolean(carregando)}>
+      <h2>Rendimentos (R$)</h2>
+      {carregando || erro || !dados ? <div className="estado-rendimentos">
+        {erro ? <>
+          <p role="alert">{erro}</p>
+          <button className="button" onClick={onTentarNovamente}>Tentar novamente</button>
+        </> : <p role="status">Carregando rendimentos...</p>}
+      </div> : <>
+        <div className="legenda">
+          <span className="legenda-serie" title={dados.categoria}>
+            <span className="pretty">
+              <input type="checkbox" aria-label="Exibir rendimentos" checked={exibirRendimentos}
+                onChange={() => setExibirRendimentos((anterior) => !anterior)} />
+              <span className="state yellow"><label>Rendimento Atual</label></span>
+            </span>
+            <span>{formatCurrency(dados.atual)}</span>
           </span>
-          <span>{formatCurrency(600)}</span>
-        </span>
-      </div>
-      <Chart
-        options={chartOptions}
-        series={chartSeries}
-        type="line"
-        height={310}
-      />
+        </div>
+        {exibirRendimentos ? <Chart options={chartOptions} series={chartSeries} type="line" height={310} /> :
+          <p className="estado-rendimentos" role="status">Selecione a série para visualizar.</p>}
+      </>}
     </section>
-  )
-}
+  );
+};
 
 export default RendimentosMoeda;

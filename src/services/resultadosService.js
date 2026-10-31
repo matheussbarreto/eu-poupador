@@ -44,11 +44,11 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
             if (transacao.outgoingType === "create") origensPosteriores.add(entrada);
             return;
         }
-        // Sem exemplos confirmados de ajustes absolutos versus diferenças, não estimar seu efeito.
-        if (transacao.outgoingType === "update" || transacao.incomingType === "update") falhar("app/ajuste-nao-interpretado");
+        // No guia, update na origem é um crédito; update no destino ainda é um ajuste sem interpretação confirmada.
+        if (transacao.incomingType === "update") falhar("app/ajuste-nao-interpretado");
         const temEntrada = tiposPatrimoniais.includes(transacao.incomingType);
         const temSaida = tiposPatrimoniais.includes(transacao.outgoingType);
-        const origemExterna = ["create", "income"].includes(transacao.outgoingType);
+        const origemExterna = ["create", "income", "update"].includes(transacao.outgoingType);
         if ((!temEntrada && !temSaida) || (!temSaida && !origemExterna) || (!temEntrada && transacao.incomingType !== "expense")) {
             falhar("app/movimentacao-invalida");
         }
@@ -62,7 +62,8 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
             if (origens.has(entrada)) falhar("app/origem-invalida");
             origens.add(entrada);
         }
-        lancamentos.push({ data: data.getTime(), centavos, entrada: temEntrada ? entrada : null, saida: temSaida ? saida : null });
+        lancamentos.push({ data: data.getTime(), centavos, entrada: temEntrada ? entrada : null, saida: temSaida ? saida : null,
+            rendimento: transacao.outgoingType === "update" });
     });
 
     cadastros.forEach((item, chave) => {
@@ -79,6 +80,7 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
     const meses = Array.from({ length: 12 }, (_, mes) => {
         const data = new Date(inicio.getFullYear(), inicio.getMonth() + mes, 1);
         const fimMes = Math.min(new Date(data.getFullYear(), data.getMonth() + 1, 1).getTime(), limite);
+        const rendimentos = new Map();
         while (indice < lancamentos.length && lancamentos[indice].data < fimMes) {
             const lancamento = lancamentos[indice++];
             [[lancamento.entrada, 1], [lancamento.saida, -1]].forEach(([chave, sinal]) => {
@@ -87,11 +89,20 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
                 if (!Number.isSafeInteger(saldo)) falhar("app/movimentacao-invalida");
                 saldos.set(chave, saldo);
             });
+            // Rendimentos são fluxos do mês; créditos anteriores à janela só compõem o saldo.
+            if (lancamento.rendimento && lancamento.data >= data.getTime()) {
+                const valor = (rendimentos.get(lancamento.entrada) || 0) + lancamento.centavos;
+                if (!Number.isSafeInteger(valor)) falhar("app/movimentacao-invalida");
+                rendimentos.set(lancamento.entrada, valor);
+            }
         }
         return {
             categoria: `${nomesMeses[data.getMonth()]}/${data.getFullYear()}`,
             // null diferencia ausência de histórico de um saldo efetivamente zerado.
             saldos: indice === 0 || data.getTime() >= limite ? null : Array.from(saldos, ([chave, centavos]) => ({
+                id: cadastros.get(chave).id, tipo: cadastros.get(chave).tipo, centavos,
+            })),
+            rendimentos: Array.from(rendimentos, ([chave, centavos]) => ({
                 id: cadastros.get(chave).id, tipo: cadastros.get(chave).tipo, centavos,
             })),
         };
@@ -205,6 +216,21 @@ export function calcularSaldoInvestimentos({ meses }, investimentos) {
         return total / 100;
     });
     return { categorias, saldos, ...calcularVariacaoMensal(categorias, saldos) };
+}
+
+export function calcularRendimentosMensais({ meses }, investimentos) {
+    const cadastros = new Map(investimentos.map((item) => [item.id, item]));
+    const categorias = meses.map((mes) => mes.categoria);
+    const rendimentos = meses.map((mes) => {
+        let total = 0;
+        obterSaldosInvestimentos(mes.rendimentos, cadastros).forEach(({ centavos }) => {
+            if (centavos < 0) falhar('app/movimentacao-invalida');
+            total += centavos;
+            if (!Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
+        });
+        return total / 100;
+    });
+    return { categorias, rendimentos, ...calcularVariacaoMensal(categorias, rendimentos) };
 }
 
 function obterSaldosInvestimentos(saldos, cadastros) {
