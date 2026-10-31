@@ -245,6 +245,23 @@ export function calcularControleInvestimentos({ meses }, investimentos) {
     return { itens, semDados: itens.length === 0, ...calcularVariacaoMensal(categorias, totais) };
 }
 
+export function calcularCarteiraInvestimentos({ categoria, itens }) {
+    // A rosca distribui os saldos positivos; não transforma posições negativas em fatias.
+    const posicoes = itens.map((item) => ({ id: item.id, nome: item.nome, centavos: obterCentavos(item.atual) }))
+        .filter((item) => item.centavos > 0);
+    const total = posicoes.reduce((soma, item) => {
+        const valor = soma + item.centavos;
+        if (!Number.isSafeInteger(valor)) falhar('app/movimentacao-invalida');
+        return valor;
+    }, 0);
+    return {
+        categoria,
+        itens: posicoes.map(({ id, nome, centavos }) => ({ id, nome, valor: centavos / 100, percentual: centavos / total * 100 })),
+        total: total / 100,
+        semDados: total === 0,
+    };
+}
+
 export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {
     return calcularVariacaoMensal(categorias, patrimonios);
 }

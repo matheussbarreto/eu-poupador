@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os oito primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos** e **Controle dos Investimentos**. Os outros cinco gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os nove primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos** e **Carteira de Investimentos**. Os outros quatro gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -767,6 +767,33 @@ erros e nova tentativa usam as fontes compartilhadas, sem exibir valores antigos
 durante uma falha. Sem posições nos dois meses, o gráfico apresenta o estado vazio
 e os totais zerados.
 
+### Carteira de investimentos
+
+O nono gráfico, **Carteira de Investimentos**, apresenta a participação de cada
+investimento nos saldos positivos do mês selecionado. `calcularCarteiraInvestimentos`
+recebe as posições já calculadas por `calcularControleInvestimentos`; não consulta
+o Firestore nem reconstrói o histórico novamente.
+
+- Cada fatia corresponde ao saldo **atual positivo** de um investimento. Saldos
+  zerados, resgatados integralmente ou negativos não formam fatias.
+- O percentual é o saldo da posição dividido pela soma dos saldos positivos.
+  Essa soma aparece no centro como **Saldo positivo**. Quando existem posições
+  negativas, ela difere do saldo líquido mostrado no histórico e no controle,
+  onde essas posições continuam representadas com seus sinais.
+- Identificadores, nomes, ordem, classificação e marcação de cadastros removidos
+  vêm do controle. Investimentos com o mesmo nome continuam separados por ID.
+- Uma posição positiva aparece com 100%; sem posições positivas, há um estado
+  vazio com total zero, sem desenhar uma rosca artificial.
+
+As cores são determinadas pelo ID e permanecem estáveis após renomear, reordenar
+ou trocar o mês. A legenda apresenta os nomes como texto, valores e percentuais,
+com quebra de nomes longos. O cartão acompanha a altura do controle ao lado, e a
+legenda distribui os itens na área disponível conforme a quantidade de posições.
+
+A carteira acompanha as atualizações das fontes e a recuperação dos outros
+gráficos. Ocultar barras no controle não altera sua distribuição. Erros e troca
+de usuário escondem os dados anteriores; trocar de mês não abre novas consultas.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -782,6 +809,7 @@ e os totais zerados.
 - `src/Componentes/SaldoInvestimentos/`: histórico mensal dos investimentos e resumo da variação entre os dois últimos meses.
 - `src/Componentes/VariacaoSaldoInvestimentos/`: comparação em barras dos mesmos saldos e controles de visibilidade.
 - `src/Componentes/ControleInvestimentos/`: comparação mensal por investimento, resumo, controles e altura conforme a quantidade de posições.
+- `src/Componentes/CarteiraInvestimentos/`: distribuição dos saldos positivos por investimento, valores e percentuais.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -804,7 +832,7 @@ e os totais zerados.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo e controle dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo, controle e carteira dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -843,8 +871,11 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
 - Controle dos investimentos: posições por ID, nomes repetidos, ordem, resgate total,
   centavos, saldos negativos, base zero, cadastros removidos, reclassificação, altura
   dinâmica, percentuais nas dicas e totais consistentes com o histórico.
+- Carteira de investimentos: reutilização do controle, saldos positivos, centavos,
+  percentuais, posições negativas ou zeradas, uma fatia, nomes repetidos e cores
+  estáveis por ID, com atualização, recuperação e isolamento entre usuários.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os oito gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os nove gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -980,6 +1011,10 @@ No Controle dos Investimentos, confira as posições dos dois meses no aplicativ
 compare os totais com o histórico e a variação. Teste aporte, resgate total,
 transferência entre investimentos, nomes repetidos, saldo negativo e mais de dez
 posições. Confira as dicas, os controles, a troca de mês e a recuperação após falha.
+Na Carteira de Investimentos, compare cada fatia com o saldo atual positivo do
+controle e confira os percentuais sobre a soma desses saldos. Teste uma posição,
+resgate total, nomes longos ou repetidos e renomeação sem mudança de cor. Havendo
+saldo negativo, ele permanece no controle e não integra o total positivo da rosca.
 
 ## Publicação
 
@@ -996,5 +1031,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos oito primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos nove primeiros gráficos de Resultados também
 no endereço publicado.

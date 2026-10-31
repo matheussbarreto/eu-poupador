@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, calcularCarteiraInvestimentos, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,55 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test('carteira reutiliza posições do controle, preservando IDs, nomes repetidos, ordem e centavos', () => {
+    const controle = Object.freeze({ categoria: 'Out/2026', itens: Object.freeze([
+        Object.freeze({ id: 'j', nome: 'Reserva', atual: 0.2, anterior: 999 }),
+        Object.freeze({ id: 'i', nome: 'Reserva', atual: 0.1, anterior: 0 }),
+    ]) });
+    const carteira = calcularCarteiraInvestimentos(controle);
+    expect(carteira).toMatchObject({ categoria: 'Out/2026', total: 0.3, semDados: false,
+        itens: [{ id: 'j', nome: 'Reserva', valor: 0.2 }, { id: 'i', nome: 'Reserva', valor: 0.1 }] });
+    expect(carteira.itens[0].percentual).toBeCloseTo(200 / 3);
+    expect(carteira.itens.reduce((soma, item) => soma + item.percentual, 0)).toBeCloseTo(100);
+});
+
+test('carteira distribui apenas saldos positivos, mesmo com saldo líquido negativo', () => {
+    expect(calcularCarteiraInvestimentos({ categoria: 'Out/2026', itens: [
+        { id: 'i', nome: 'Reserva', atual: 100 }, { id: 'j', nome: 'Negativo', atual: -200 },
+        { id: 'z', nome: 'Resgatado', anterior: 500, atual: 0 },
+    ] })).toEqual({ categoria: 'Out/2026', total: 100, semDados: false,
+        itens: [{ id: 'i', nome: 'Reserva', valor: 100, percentual: 100 }] });
+});
+
+test.each([[], [{ id: 'i', atual: 0 }], [{ id: 'i', atual: -10 }]].map(itens => [itens]))('carteira sem posições positivas fica vazia sem percentual inválido (%j)', (itens) => {
+    expect(calcularCarteiraInvestimentos({ categoria: 'Out/2026', itens })).toEqual({ categoria: 'Out/2026', itens: [], total: 0, semDados: true });
+});
+
+test('carteira herda período, classificação e cadastros removidos do controle', () => {
+    const objetivos = [
+        { id: 'i', objective: 'Investimento', current: 0, nome: 'Reserva', isDeleted: true },
+        { id: 'b', objective: 'Bem', current: 0 },
+    ];
+    const registros = [transacao(100, 'create', 'investment', null, 'i', 8), transacao(500, 'create', 'investment', null, 'b', 8),
+        transacao(50, 'income', 'investment', null, 'i'),
+        { ...transacao(999, 'income', 'investment', null, 'i'), isDeleted: true }];
+    const controle = calcularControleInvestimentos(calcular(registros, [], objetivos), objetivos);
+    const carteira = calcularCarteiraInvestimentos(controle);
+    expect(carteira.total).toBe(controle.atual);
+    expect(carteira.itens).toEqual([{ id: 'i', nome: 'Reserva (removido)', valor: 150, percentual: 100 }]);
+    const anterior = calcularControleInvestimentos(calcular(registros, [], objetivos, new Date(2026, 8, 1)), objetivos);
+    expect(calcularCarteiraInvestimentos(anterior)).toMatchObject({ categoria: 'Set/2026', total: 100 });
+});
+
+test('carteira rejeita valores inválidos e soma insegura em vez de apresentar uma carteira parcial', () => {
+    for (const atual of [NaN, Infinity, '100', undefined]) {
+        expect(() => calcularCarteiraInvestimentos({ itens: [{ id: 'i', atual: 100 }, { id: 'j', atual }] })).toThrow();
+    }
+    expect(() => calcularCarteiraInvestimentos({ itens: [
+        { id: 'i', atual: 50000000000000 }, { id: 'j', atual: 50000000000000 },
+    ] })).toThrow();
+});
 
 test('controle detalha aportes, resgates e transferências por ID com totais iguais ao histórico', () => {
     const objetivos = [
