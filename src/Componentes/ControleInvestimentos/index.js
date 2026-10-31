@@ -1,115 +1,70 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Chart from "react-apexcharts";
-import './ControleInvestimentos.css'
+import './ControleInvestimentos.css';
 import { formatCurrency } from "../utils/formatCurrency";
 
-const ControleInvestimentos = () => {
+const formatarPercentual = (valor) => valor == null ? '—' :
+    (valor >= 0 ? '+' : '') + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
 
-    const [totalAnterior, setTotalAnterior] = useState(0);
-    const [totalAtual, setTotalAtual] = useState(0);
-    const [diferencaGeral, setDiferencaGeral] = useState(0);
-    const [diferencaPercentual, setDiferencaPercentual] = useState(0);
-
-    const [chartOptions, setChartOptions] = useState({
-        chart: {
-            type: "bar",
-            height: 350,
-            // stacked: false, 
-            toolbar: { show: false }
-        },
-        plotOptions: {
-            bar: { horizontal: true, dataLabels: { position: "top" } }
-        },
-        colors: ["#A0A0A0", "#FFA500"],
+const ControleInvestimentos = ({ dados, carregando, erro, onTentarNovamente }) => {
+    const [seriesVisiveis, setSeriesVisiveis] = useState({ Atual: true, 'Mês Anterior': true });
+    const itens = dados?.itens || [];
+    const legendas = [
+        { nome: 'Atual', campo: 'atual', mes: dados?.categoria, classe: 'yellow', cor: 'var(--yellow-color)' },
+        { nome: 'Mês Anterior', campo: 'anterior', mes: dados?.categoriaAnterior, classe: 'gray', cor: 'var(--tertiary-color)' },
+    ];
+    const visiveis = [...legendas].reverse().filter((legenda) => seriesVisiveis[legenda.nome]);
+    const series = visiveis.map((legenda) => ({ name: legenda.nome, data: itens.map((item) => item[legenda.campo]) }));
+    const options = {
+        chart: { type: 'bar', toolbar: { show: false }, fontFamily: '"Segoe UI", "Cocogoose", Arial, sans-serif' },
+        plotOptions: { bar: { horizontal: true, barHeight: '65%' } },
+        colors: visiveis.map((legenda) => legenda.cor),
         dataLabels: {
             enabled: true,
-            style: {
-                colors: ["#000"]
-            },
-            offsetX: 5,
-            textAnchor: 'start',
-            formatter: (val, opts) => {
-                if (opts.seriesIndex === 1) {
-                    const mesAnterior = opts.w.config.series[0].data[opts.dataPointIndex];
-                    const diferenca = val - mesAnterior;
-                    const percentual = ((diferenca / mesAnterior) * 100).toFixed(1).replace('.', ',');
-                    return `${formatCurrency(val)} (${percentual}%)`;
-                }
-                return `${formatCurrency(val)}`;
+            style: { fontSize: '11px' },
+            background: { enabled: true, foreColor: '#333', padding: 3, borderRadius: 2 },
+            formatter: (valor) => formatCurrency(valor),
+        },
+        xaxis: { categories: itens.map((item) => item.nome), labels: { formatter: (valor) => formatCurrency(valor, 0) } },
+        yaxis: { labels: { maxWidth: 180 } },
+        legend: { show: false },
+        tooltip: {
+            y: {
+                formatter: (valor, { seriesIndex, dataPointIndex }) => {
+                    const atual = visiveis[seriesIndex]?.campo === 'atual';
+                    return formatCurrency(valor) + (atual ? ` (${formatarPercentual(itens[dataPointIndex]?.diferencaPercentual)})` : '');
+                },
             },
         },
-        stroke: { width: 1, colors: ["#fff"] },
-        xaxis: {categories: []},
-        legend: { show: false },
-        fill: { opacity: 1 }
-    });
-
-    const [chartSeries, setChartSeries] = useState([
-        { name: "Mês Anterior", data: [] },
-        { name: "Mês Atual", data: [] }
-    ]);
-
-    useEffect(() => {
-        // Simulação de dados da API
-        let data = [
-            { nome: "Investimento 01", mes_anterior: 7000, mes_atual: 7105 },
-            { nome: "Investimento 02", mes_anterior: 6000, mes_atual: 6090 },
-            { nome: "Investimento 03", mes_anterior: 6000, mes_atual: 6090 },
-            { nome: "Investimento 04", mes_anterior: 5000, mes_atual: 5080 },
-            { nome: "Investimento 05", mes_anterior: 5000, mes_atual: 4580 },
-            { nome: "Investimento 06", mes_anterior: 5000, mes_atual: 5080 },
-            { nome: "Investimento 07", mes_anterior: 2500, mes_atual: 2540 },
-            { nome: "Investimento 08", mes_anterior: 2115, mes_atual: 2150 }
-        ];
-
-        const totalAnterior = data.reduce((sum, item) => sum + item.mes_anterior, 0);
-        const totalAtual = data.reduce((sum, item) => sum + item.mes_atual, 0);
-        const diferencaGeral = totalAtual - totalAnterior;
-        const diferencaPercentual = ((diferencaGeral / totalAnterior) * 100).toFixed(1).replace('.', ',');
-
-        setTotalAnterior(totalAnterior);
-        setTotalAtual(totalAtual);
-        setDiferencaGeral(diferencaGeral);
-        setDiferencaPercentual(diferencaPercentual);
-
-        setChartOptions(prevOptions => ({
-            ...prevOptions,
-            xaxis: { categories: data.map(item => item.nome) }
-        }));
-
-        setChartSeries([
-            { name: "Mês Anterior", data: data.map(item => item.mes_anterior) },
-            { name: "Mês Atual", data: data.map(item => item.mes_atual) }
-        ]);
-    }, []);
-
-    const valueColor = (diferencaGeral < 0 ? 'var(--red-color)' : 'var(--primary-color)');
-
+    };
 
     return (
-        <section className="controle-investimentos">
-            <div className="legenda">
+        <section className="controle-investimentos" aria-busy={Boolean(carregando)}>
             <h2>Controle dos Investimentos</h2>
-                <span className="legenda-serie ">
-                    <span className="pretty">
-                        <input type="checkbox" />
-                        <span className="state yellow"><label>Atual</label></span>
-                    </span>
-                    <span>{formatCurrency(totalAtual)}</span>
-                </span>
-                <span className="legenda-serie">
-                    <span className="pretty">
-                        <input type="checkbox" />
-                        <span className="state gray"><label>Mês Anterior</label></span>
-                    </span>
-                    <span>{formatCurrency(totalAnterior)}</span>
-                </span>
-                <span className="legenda-serie ">
-                    <span className="pretty diferenca">Diferença</span>
-                    <span style={{ color: valueColor }}>{formatCurrency(diferencaGeral)}<br />({diferencaPercentual}%)</span>
-                </span>
-            </div>
-            <Chart options={chartOptions} series={chartSeries} type="bar" height={480} />
+            {carregando || erro || !dados ? <div className="estado-controle-investimentos">
+                {erro ? <><p role="alert">{erro}</p><button className="button" onClick={onTentarNovamente}>Tentar novamente</button></> :
+                    <p role="status">Carregando investimentos...</p>}
+            </div> : <>
+                <div className="legenda">
+                    {legendas.map((legenda) => <div className="legenda-serie" key={legenda.nome} title={legenda.mes}>
+                        <div className="pretty">
+                            <input type="checkbox" aria-label={'Exibir ' + legenda.nome} checked={seriesVisiveis[legenda.nome]}
+                                onChange={() => setSeriesVisiveis((anteriores) => ({ ...anteriores, [legenda.nome]: !anteriores[legenda.nome] }))} />
+                            <div className={'state ' + legenda.classe}><label>{legenda.nome}</label></div>
+                        </div>
+                        <span>{formatCurrency(dados[legenda.campo])}</span>
+                    </div>)}
+                    <div className="legenda-serie diferenca-investimentos">
+                        <span>Diferença</span>
+                        <span style={{ color: dados.diferenca < 0 ? 'var(--red-color)' : 'var(--primary-color)' }}>
+                            {(dados.diferenca >= 0 ? '+' : '') + formatCurrency(dados.diferenca)}<br />({formatarPercentual(dados.diferencaPercentual)})
+                        </span>
+                    </div>
+                </div>
+                {dados.semDados ? <p className="estado-controle-investimentos" role="status">Não há saldos de investimentos no mês selecionado ou no anterior.</p> :
+                    visiveis.length > 0 ? <Chart options={options} series={series} type="bar" height={Math.max(320, itens.length * 80 + 80)} /> :
+                        <p className="estado-controle-investimentos" role="status">Selecione uma série para visualizar.</p>}
+            </>}
         </section>
     );
 };

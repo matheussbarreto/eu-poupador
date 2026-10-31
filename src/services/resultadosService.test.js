@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, obterMensagemErroResultados } from "./resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, obterMensagemErroResultados } from "./resultadosService";
 
 const outubro = new Date(2026, 9, 1);
 const agora = new Date(2026, 9, 29, 12);
@@ -10,6 +10,87 @@ const transacao = (amount, outgoingType, incomingType, outID, inID, mes = 9, dia
 const criacoes = [transacao(1000, "create", "account", null, "c", 8), transacao(200, "create", "investment", null, "i", 8), transacao(-1000, "create", "investment", null, "d", 8)];
 const calcular = (registros = criacoes, c = contas, i = investimentos, data = outubro) => calcularSaldosMensais(registros, c, i, data, agora);
 const patrimonio = (...args) => calcularPatrimonioMensal(calcular(...args));
+
+test('controle detalha aportes, resgates e transferências por ID com totais iguais ao histórico', () => {
+    const objetivos = [
+        { id: 'i', nome: 'Reserva', current: 200, objective: 'Investimento', order: 2 },
+        { id: 'j', nome: 'Reserva', current: 100, objective: 'Investimento', order: 1, isDeleted: true },
+        { id: 'b', nome: 'Carro', current: 500, objective: 'Bem' },
+        { id: 'd', current: -1000, objective: 'Dívida' },
+    ];
+    const registros = [...criacoes,
+        transacao(100, 'create', 'investment', null, 'j', 8), transacao(500, 'create', 'investment', null, 'b', 8),
+        transacao(50, 'investment', 'investment', 'i', 'j'),
+        transacao(150, 'investment', 'account', 'i', 'c'), transacao(50, 'account', 'investment', 'c', 'j'),
+        { ...transacao(999, 'account', 'investment', 'c', 'j'), isDeleted: true },
+        transacao(999, 'account', 'investment', 'c', 'j', 10),
+    ];
+    const base = calcular(registros, contas, objetivos);
+    const controle = calcularControleInvestimentos(base, objetivos);
+    expect(controle.itens).toMatchObject([
+        { id: 'j', nome: 'Reserva (removido)', anterior: 100, atual: 200, diferenca: 100, diferencaPercentual: 100 },
+        { id: 'i', nome: 'Reserva', anterior: 200, atual: 0, diferenca: -200, diferencaPercentual: -100 },
+    ]);
+    expect(controle).toMatchObject({ categoria: 'Out/2026', categoriaAnterior: 'Set/2026', anterior: 300, atual: 200, diferenca: -100, semDados: false });
+    for (const campo of ['anterior', 'atual', 'diferenca', 'diferencaPercentual']) {
+        expect(controle[campo]).toBe(calcularSaldoInvestimentos(base, objetivos)[campo]);
+    }
+});
+
+test('controle preserva centavos, negativos e nomes repetidos sem misturar coleções ou alterar a base', () => {
+    const objetivos = Object.freeze([
+        Object.freeze({ id: 'i', nome: 'Reserva', objective: 'Investimento' }),
+        Object.freeze({ id: 'j', nome: 'Reserva', objective: 'Investimento' }),
+        Object.freeze({ id: 'n', nome: ' ', objective: 'Investimento', order: 0 }),
+    ]);
+    const base = Object.freeze({ meses: Object.freeze([
+        Object.freeze({ categoria: 'Set/2026', saldos: Object.freeze([{ id: 'i', tipo: 'investment', centavos: -20 }]) }),
+        Object.freeze({ categoria: 'Out/2026', saldos: Object.freeze([
+            { id: 'i', tipo: 'investment', centavos: -10 }, { id: 'j', tipo: 'investment', centavos: 10 },
+            { id: 'n', tipo: 'investment', centavos: 30 }, { id: 'i', tipo: 'account', centavos: 999 },
+        ]) }),
+    ]) });
+    expect(calcularControleInvestimentos(base, objetivos)).toMatchObject({
+        anterior: -0.2, atual: 0.3, diferenca: 0.5, diferencaPercentual: 250,
+        itens: [
+            { id: 'n', nome: 'Investimento sem nome', anterior: 0, atual: 0.3, diferencaPercentual: null },
+            { id: 'i', nome: 'Reserva', anterior: -0.2, atual: -0.1, diferencaPercentual: 50 },
+            { id: 'j', nome: 'Reserva', anterior: 0, atual: 0.1, diferencaPercentual: null },
+        ],
+    });
+});
+
+test('controle mantém mês sem movimentos, respeita período, reclassificação e posições zeradas', () => {
+    const objetivos = [{ id: 'i', objective: 'Investimento', current: 0 }];
+    const registros = [transacao(100, 'create', 'investment', null, 'i', -3)];
+    expect(calcularControleInvestimentos(calcular(registros, [], objetivos, new Date(2026, 0, 1)), objetivos)).toMatchObject({
+        categoria: 'Jan/2026', categoriaAnterior: 'Dez/2025', anterior: 100, atual: 100, diferenca: 0,
+    });
+    const reclassificados = [{ ...objetivos[0], objective: 'Bem' }];
+    expect(calcularControleInvestimentos(calcular(registros, [], objetivos), reclassificados)).toMatchObject({ itens: [], semDados: true, anterior: 0, atual: 0 });
+    for (const registros of [[], [transacao(0, 'create', 'investment', null, 'i')], [transacao(100, 'create', 'investment', null, 'i', 10)]]) {
+        expect(calcularControleInvestimentos(calcular(registros, [], objetivos), objetivos)).toMatchObject({ itens: [], semDados: true, anterior: 0, atual: 0, diferencaPercentual: null });
+    }
+});
+
+test('controle não confunde total líquido zero com ausência de investimentos', () => {
+    const objetivos = [{ id: 'i', objective: 'Investimento' }, { id: 'j', objective: 'Investimento' }];
+    const base = { meses: [{ categoria: 'Set/2026', saldos: null }, { categoria: 'Out/2026', saldos: [
+        { id: 'i', tipo: 'investment', centavos: 100 }, { id: 'j', tipo: 'investment', centavos: -100 },
+    ] }] };
+    expect(calcularControleInvestimentos(base, objetivos)).toMatchObject({ semDados: false, atual: 0, diferencaPercentual: null });
+    expect(calcularControleInvestimentos(base, objetivos).itens).toHaveLength(2);
+});
+
+test('controle rejeita referências ausentes, valores inválidos e totais inseguros', () => {
+    const base = saldos => ({ meses: [{ categoria: 'Set/2026', saldos: null }, { categoria: 'Out/2026', saldos }] });
+    const objetivos = [{ id: 'i', objective: 'Investimento' }, { id: 'j', objective: 'Investimento' }];
+    expect(() => calcularControleInvestimentos(base([{ id: 'ausente', tipo: 'investment', centavos: 1 }]), objetivos)).toThrow();
+    for (const centavos of [NaN, Infinity, 1.5, '100']) {
+        expect(() => calcularControleInvestimentos(base([{ id: 'i', tipo: 'investment', centavos }]), objetivos)).toThrow();
+    }
+    expect(() => calcularControleInvestimentos(base([{ id: 'i', tipo: 'investment', centavos: Number.MAX_SAFE_INTEGER }, { id: 'j', tipo: 'investment', centavos: 1 }]), objetivos)).toThrow();
+});
 
 test('saldo dos investimentos soma posições mensais, aportes e resgates, sem duplicar transferências internas', () => {
     const objetivos = [...investimentos.map(item => ({ ...item, objective: item.id === 'i' ? 'Investimento' : 'Dívida' })),

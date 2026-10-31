@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os sete primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos** e **Variação Saldo dos Investimentos**. Os outros seis gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os oito primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos** e **Controle dos Investimentos**. Os outros cinco gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
 
 As telas do painel exigem login e assinatura válida. A série Selic em Resultados
 usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
@@ -739,6 +739,34 @@ trocar de mês ou usuário. A área do gráfico acompanha a altura disponível n
 Carregamento, erros e nova tentativa são compartilhados com o histórico; falhas
 escondem os valores anteriores em ambos os gráficos.
 
+### Controle dos investimentos
+
+O oitavo gráfico, **Controle dos Investimentos**, compara em barras horizontais o
+saldo de cada investimento no mês selecionado e no anterior. A função
+`calcularControleInvestimentos` usa os dois últimos meses da base já reconstruída
+pela página, sem consultar novamente o Firestore. Compartilha com o histórico a
+seleção de objetivos classificados como `Investimento` e o cálculo da variação.
+
+- Cada posição é identificada pelo ID, mantendo investimentos com nomes iguais
+  separados. A ordem segue o cadastro, depois nome e ID.
+- Entram as posições com saldo diferente de zero em pelo menos um dos dois meses.
+  Um investimento totalmente resgatado no mês continua aparecendo com saldo atual
+  zero. Posições zeradas nos dois meses não ocupam uma linha.
+- Bens, dívidas e contas não entram. A classificação atual e os cadastros removidos
+  seguem a regra do histórico; os removidos mantêm seus saldos e recebem esse rótulo.
+- Saldos negativos são preservados. O percentual de cada posição é a diferença
+  dividida pelo módulo do saldo anterior; base zero aparece como `—`.
+- O resumo soma todas as posições, com os mesmos totais dos dois gráficos anteriores.
+  A variação inclui aportes e resgates, e não representa apenas rendimentos.
+
+O saldo atual aparece em laranja e o anterior em cinza. As barras mostram os valores
+em reais; ao passar o ponteiro, o saldo atual também informa sua variação percentual.
+A altura aumenta com o número de investimentos. Os controles de visibilidade mantêm
+os totais e as cores e são reiniciados ao trocar de mês ou usuário. Carregamento,
+erros e nova tentativa usam as fontes compartilhadas, sem exibir valores antigos
+durante uma falha. Sem posições nos dois meses, o gráfico apresenta o estado vazio
+e os totais zerados.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -753,6 +781,7 @@ escondem os valores anteriores em ambos os gráficos.
 - `src/Componentes/ResultadoAtivoPassivo/`: comparação proporcional dos totais de ativos e passivos do mês.
 - `src/Componentes/SaldoInvestimentos/`: histórico mensal dos investimentos e resumo da variação entre os dois últimos meses.
 - `src/Componentes/VariacaoSaldoInvestimentos/`: comparação em barras dos mesmos saldos e controles de visibilidade.
+- `src/Componentes/ControleInvestimentos/`: comparação mensal por investimento, resumo, controles e altura conforme a quantidade de posições.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -775,7 +804,7 @@ escondem os valores anteriores em ambos os gráficos.
 - `src/services/authService.js`: autenticação, assinatura e observação da sessão.
 - `src/services/transacoesService.js`: leituras por período, saldos iniciais e histórico compartilhado por usuário.
 - `src/services/contasService.js`: leitura das contas do usuário.
-- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
+- `src/services/resultadosService.js`: reconstrução dos saldos mensais, patrimônio, saldo e controle dos investimentos, variação, distribuições e comparação de ativos e passivos e mensagens de erro.
 - `src/services/previsoesService.js`: leitura compartilhada das fontes de receitas e despesas previstas.
 - `src/services/balancoService.js`: período, cálculos e mensagens do balanço.
 - `src/services/investimentosService.js`: leitura dos cadastros compartilhados da página Objetivos.
@@ -811,8 +840,11 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   saldos negativos, variação, meses zerados e controle de visibilidade.
 - Variação do saldo dos investimentos: consistência com o histórico, base zero ou
   negativa, cores fixas, controles independentes, recuperação e isolamento entre usuários.
+- Controle dos investimentos: posições por ID, nomes repetidos, ordem, resgate total,
+  centavos, saldos negativos, base zero, cadastros removidos, reclassificação, altura
+  dinâmica, percentuais nas dicas e totais consistentes com o histórico.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os sete gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os oito gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -944,6 +976,10 @@ Na Variação Saldo dos Investimentos, compare as barras com os dois últimos po
 da linha e o resumo com o do gráfico ao lado. Oculte e reexiba cada barra e confira
 se trocar de mês restaura os controles. Teste a nova tentativa pelo gráfico de barras
 e confirme que os dois gráficos se recuperam juntos.
+No Controle dos Investimentos, confira as posições dos dois meses no aplicativo e
+compare os totais com o histórico e a variação. Teste aporte, resgate total,
+transferência entre investimentos, nomes repetidos, saldo negativo e mais de dez
+posições. Confira as dicas, os controles, a troca de mês e a recuperação após falha.
 
 ## Publicação
 
@@ -960,5 +996,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos sete primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos oito primeiros gráficos de Resultados também
 no endereço publicado.

@@ -198,17 +198,51 @@ export function calcularSaldoInvestimentos({ meses }, investimentos) {
     const categorias = meses.map((mes) => mes.categoria);
     const saldos = meses.map((mes) => {
         let total = 0;
-        (mes.saldos || []).forEach(({ id, tipo, centavos }) => {
-            if (tipo !== 'investment') return;
-            if (!cadastros.has(id)) falhar('app/referencia-ausente');
-            if (cadastros.get(id).objective !== 'Investimento') return;
-            if (!Number.isSafeInteger(centavos)) falhar('app/movimentacao-invalida');
+        obterSaldosInvestimentos(mes.saldos, cadastros).forEach(({ centavos }) => {
             total += centavos;
             if (!Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
         });
         return total / 100;
     });
     return { categorias, saldos, ...calcularVariacaoMensal(categorias, saldos) };
+}
+
+function obterSaldosInvestimentos(saldos, cadastros) {
+    return (saldos || []).filter(({ id, tipo, centavos }) => {
+        if (tipo !== 'investment') return false;
+        if (!cadastros.has(id)) falhar('app/referencia-ausente');
+        if (cadastros.get(id).objective !== 'Investimento') return false;
+        if (!Number.isSafeInteger(centavos)) falhar('app/movimentacao-invalida');
+        return true;
+    });
+}
+
+export function calcularControleInvestimentos({ meses }, investimentos) {
+    const cadastros = new Map(investimentos.map((item) => [item.id, item]));
+    const comparados = meses.slice(-2);
+    const categorias = comparados.map((mes) => mes.categoria);
+    const porInvestimento = new Map();
+    const totais = comparados.map((mes, indice) => {
+        let total = 0;
+        obterSaldosInvestimentos(mes.saldos, cadastros).forEach(({ id, centavos }) => {
+            if (!porInvestimento.has(id)) porInvestimento.set(id, [0, 0]);
+            porInvestimento.get(id)[indice] = centavos / 100;
+            total += centavos;
+            if (!Number.isSafeInteger(total)) falhar('app/movimentacao-invalida');
+        });
+        return total / 100;
+    });
+    const itens = Array.from(porInvestimento, ([id, saldos]) => {
+        const cadastro = cadastros.get(id);
+        const nome = typeof cadastro.nome === 'string' && cadastro.nome.trim() ? cadastro.nome.trim() : 'Investimento sem nome';
+        return {
+            id, nome: cadastro.isDeleted === true ? `${nome} (removido)` : nome,
+            ordem: Number.isFinite(cadastro.order) ? cadastro.order : Infinity,
+            ...calcularVariacaoMensal(categorias, saldos),
+        };
+    }).filter((item) => item.anterior !== 0 || item.atual !== 0)
+        .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id));
+    return { itens, semDados: itens.length === 0, ...calcularVariacaoMensal(categorias, totais) };
 }
 
 export function calcularVariacaoPatrimonial({ categorias, patrimonios }) {

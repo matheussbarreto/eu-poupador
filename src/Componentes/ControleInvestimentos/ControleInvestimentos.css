@@ -1,8 +1,8 @@
 .controle-investimentos {
     width: 70%;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
 }
 
 .controle-investimentos h2 {
@@ -13,10 +13,28 @@
 .controle-investimentos .legenda {
     align-items: flex-end;
     margin-top: 0;
+    margin-bottom: 16px;
 }
 
 .controle-investimentos .legenda-serie {
-    min-width: 290px;
+    min-width: 0;
+    width: 290px;
+    max-width: 100%;
+    gap: 8px;
+}
+
+.controle-investimentos .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
+}
+
+.controle-investimentos .estado-controle-investimentos {
+    min-height: 320px;
+    padding-top: 20px;
+}
+
+.controle-investimentos .estado-controle-investimentos button {
+    margin-top: 16px;
 }
 
 .controle-investimentos .legenda-serie:last-child {

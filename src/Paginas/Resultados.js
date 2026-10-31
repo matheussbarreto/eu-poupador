@@ -17,7 +17,7 @@ import VariacaoRendimentosPercentual from "../Componentes/VariacaoRendimentosPer
 import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
-import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, obterMensagemErroResultados } from "../services/resultadosService";
+import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, obterMensagemErroResultados } from "../services/resultadosService";
 
 const Resultados = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
@@ -109,6 +109,14 @@ const Resultados = ({ usuarioId }) => {
             return { erro: obterMensagemErroResultados(erro) };
         }
     }, [saldosMensais.dados, fontes.investimentos]);
+    const controleInvestimentos = useMemo(() => {
+        if (!saldosMensais.dados) return {};
+        try {
+            return { dados: calcularControleInvestimentos(saldosMensais.dados, fontes.investimentos) };
+        } catch (erro) {
+            return { erro: obterMensagemErroResultados(erro) };
+        }
+    }, [saldosMensais.dados, fontes.investimentos]);
     const erro = erroConsulta || saldosMensais.erro || patrimonio.erro;
     const tentarNovamente = () => {
         setTentativa((valor) => valor + 1);
@@ -167,7 +175,13 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro || saldoInvestimentos.erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <ControleInvestimentos />
+            <ControleInvestimentos
+                key={`controle-investimentos-${periodo}`}
+                dados={controleInvestimentos.dados}
+                carregando={!erro && carregando}
+                erro={erro || controleInvestimentos.erro}
+                onTentarNovamente={tentarNovamente}
+            />
             <CarteiraInvestimentos />
             <RendimentosMoeda />
             <VariacaoRendimentosMoeda />
