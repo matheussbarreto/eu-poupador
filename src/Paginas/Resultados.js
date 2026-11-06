@@ -211,7 +211,13 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro || rendimentosMensais.erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <VariacaoRendimentosMoeda />
+            <VariacaoRendimentosMoeda
+                key={`variacao-rendimentos-${periodo}`}
+                dados={rendimentosMensais.dados}
+                carregando={!erro && carregando}
+                erro={erro || rendimentosMensais.erro}
+                onTentarNovamente={tentarNovamente}
+            />
             <RendimentosPercentual />
             <VariacaoRendimentosPercentual />
         </div>
