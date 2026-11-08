@@ -4,13 +4,14 @@ import Resultados from "./Resultados";
 import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
+import { consultarSelicMensal } from "../services/selicService";
 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock("../services/contasService", () => ({ observarContas: jest.fn() }));
 jest.mock("../services/investimentosService", () => ({ observarInvestimentos: jest.fn() }));
 jest.mock("../services/transacoesService", () => ({ observarHistoricoTransacoes: jest.fn() }));
+jest.mock("../services/selicService", () => ({ consultarSelicMensal: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories, labels: props.options.labels, cores: props.options.colors })}</div>);
-jest.mock("../Componentes/RendimentosPercentual", () => () => null);
 jest.mock("../Componentes/VariacaoRendimentosPercentual", () => () => null);
 
 let container;
@@ -32,6 +33,7 @@ beforeEach(() => {
     jest.resetAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date(2026, 9, 29, 12));
+    consultarSelicMensal.mockResolvedValue({ taxas: Array(12).fill(null), dataFinal: null });
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -550,4 +552,95 @@ test("StrictMode cancela todas as leituras e ignora o primeiro conjunto de callb
     expect(valores()).toEqual([100, 0, 100]);
     await act(async () => root.render(null));
     Object.values(fontes).forEach(lista => expect(lista[1].cancelar).toHaveBeenCalledTimes(1));
+});
+
+test('percentuais usam créditos compartilhados, preservam o título e recuperam a Selic sem novas leituras privadas', async () => {
+    consultarSelicMensal.mockRejectedValueOnce(new Error('Falha BCB'));
+    const percentual = () => container.querySelector('.rendimentos-percentual');
+    const ler = () => JSON.parse(percentual().querySelector('[data-testid="grafico"]').textContent);
+    await act(async () => root.render(<Resultados usuarioId="a" />));
+    const registros = [
+        { date: new Date(2026, 8, 1).toISOString(), amount: 1000, outgoingType: 'create', incomingType: 'investment', inID: 'i' },
+        { date: new Date(2026, 8, 20).toISOString(), amount: 10, outgoingType: 'update', incomingType: 'investment', inID: 'i' },
+        { date: new Date(2026, 9, 20).toISOString(), amount: 20.2, outgoingType: 'update', incomingType: 'investment', inID: 'i' },
+    ];
+    await act(async () => {
+        fontes.contas[0].receber([]);
+        fontes.investimentos[0].receber([{ id: 'i', current: 0, objective: 'Investimento' }]);
+        fontes.transacoes[0].receber(registros);
+    });
+    expect(ler().series[0].data.slice(-2)).toEqual([1, 2]);
+    expect(percentual().querySelector('h2').textContent).toBe('Rendimentos (% a.a.)');
+    expect(percentual().querySelector('.legenda').textContent).toContain('3,02%');
+    expect(percentual().querySelector('[role="alert"]').textContent).toContain('Selic');
+    consultarSelicMensal.mockImplementation(async (dataFinal) => ({ taxas: Array(12).fill(0.5), dataFinal }));
+    await act(async () => percentual().querySelector('button').click());
+    expect(ler().series).toHaveLength(2);
+    Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
+    expect(consultarSelicMensal).toHaveBeenCalledTimes(2);
+    await act(async () => percentual().querySelector('[aria-label="Exibir Rendimento Atual"]').click());
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(ler().series[0].data.at(-1)).toBe(1);
+    expect(percentual().querySelector('[aria-label="Exibir Rendimento Atual"]').checked).toBe(true);
+    Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
+    expect(consultarSelicMensal).toHaveBeenCalledTimes(3);
+    await act(async () => fontes.transacoes[0].receber(registros.map(item => item.outgoingType === 'update' ? { ...item, isDeleted: true } : item)));
+    expect(ler().series[0].data.at(-1)).toBe(0);
+    await act(async () => fontes.contas[0].falhar({ code: 'permission-denied' }));
+    expect(percentual().querySelector('.legenda')).toBeNull();
+    await act(async () => root.render(<Resultados usuarioId="b" />));
+    await act(async () => fontes.transacoes[0].receber(registros));
+    expect(percentual().querySelector('.legenda')).toBeNull();
+    await receber(1);
+    expect(percentual().querySelector('[role="alert"]')).toBeNull();
+    expect(ler().series[0].data).toEqual(Array(12).fill(null));
+    expect(consultarSelicMensal).toHaveBeenCalledTimes(3);
+});
+
+test('respostas atrasadas da Selic não substituem o período atual e a consulta é cancelada ao sair', async () => {
+    let resolverAnterior;
+    consultarSelicMensal.mockImplementationOnce(() => new Promise(resolve => { resolverAnterior = resolve; }));
+    await act(async () => root.render(<Resultados usuarioId="a" />));
+    const signalAnterior = consultarSelicMensal.mock.calls[0][1];
+    await receber();
+    consultarSelicMensal.mockImplementation(async (dataFinal) => ({ taxas: Array(12).fill(0.5), dataFinal }));
+    await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
+    expect(signalAnterior.aborted).toBe(true);
+    await act(async () => resolverAnterior({ taxas: Array(12).fill(99), dataFinal: new Date(2026, 9, 1) }));
+    const percentual = container.querySelector('.rendimentos-percentual');
+    expect(JSON.parse(percentual.querySelector('[data-testid="grafico"]').textContent).series[1].data).toEqual(Array(12).fill(0.5));
+    const signalAtual = consultarSelicMensal.mock.calls[1][1];
+    await act(async () => root.render(null));
+    expect(signalAtual.aborted).toBe(true);
+});
+
+test.each([
+    { agora: new Date(2026, 10, 7), corte: new Date(2026, 9, 1), inicio: 'Nov/2025', fim: 'Out/2026', mesesAno: 10 },
+    { agora: new Date(2026, 0, 7), corte: new Date(2025, 11, 1), inicio: 'Jan/2025', fim: 'Dez/2025', mesesAno: 12 },
+])('alinha linhas e acumulados até $fim, mantendo doze meses e os demais gráficos no mês escolhido', async ({ agora, corte, inicio, fim, mesesAno }) => {
+    jest.setSystemTime(agora);
+    consultarSelicMensal.mockResolvedValue({ taxas: Array(12).fill(0.5), dataFinal: corte });
+    await act(async () => root.render(<Resultados usuarioId="a" />));
+    await act(async () => {
+        fontes.contas[0].receber([]);
+        fontes.investimentos[0].receber([{ id: 'i', current: 0, objective: 'Investimento' }]);
+        fontes.transacoes[0].receber([
+            { date: new Date(corte.getFullYear(), corte.getMonth() - 1, 1).toISOString(), amount: 1000, outgoingType: 'create', incomingType: 'investment', inID: 'i' },
+            { date: new Date(corte.getFullYear(), corte.getMonth(), 20).toISOString(), amount: 10, outgoingType: 'update', incomingType: 'investment', inID: 'i' },
+            { date: new Date(agora.getFullYear(), agora.getMonth(), 2).toISOString(), amount: 100, outgoingType: 'update', incomingType: 'investment', inID: 'i' },
+        ]);
+    });
+    const percentual = container.querySelector('.rendimentos-percentual');
+    const exibido = JSON.parse(percentual.querySelector('[data-testid="grafico"]').textContent);
+    expect(exibido.categorias).toHaveLength(12);
+    expect(exibido.categorias[0]).toBe(inicio);
+    expect(exibido.categorias.at(-1)).toBe(fim);
+    expect(exibido.series.map(serie => serie.data.at(-1))).toEqual([1, 0.5]);
+    const acumulados = percentual.querySelectorAll('.legenda-serie > span');
+    expect(acumulados[0].textContent).toBe('1,00%');
+    expect(acumulados[1].textContent).toBe(((1.005 ** mesesAno - 1) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');
+    const moeda = JSON.parse(container.querySelector('.rendimentos-moeda [data-testid="grafico"]').textContent);
+    expect(moeda.series[0].data.at(-1)).toBe(100);
+    Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
+    expect(consultarSelicMensal).toHaveBeenCalledTimes(1);
 });

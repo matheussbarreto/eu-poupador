@@ -81,6 +81,7 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
         const data = new Date(inicio.getFullYear(), inicio.getMonth() + mes, 1);
         const fimMes = Math.min(new Date(data.getFullYear(), data.getMonth() + 1, 1).getTime(), limite);
         const rendimentos = new Map();
+        const capitais = new Map(saldos);
         while (indice < lancamentos.length && lancamentos[indice].data < fimMes) {
             const lancamento = lancamentos[indice++];
             [[lancamento.entrada, 1], [lancamento.saida, -1]].forEach(([chave, sinal]) => {
@@ -88,6 +89,15 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
                 const saldo = (saldos.get(chave) || 0) + sinal * lancamento.centavos;
                 if (!Number.isSafeInteger(saldo)) falhar("app/movimentacao-invalida");
                 saldos.set(chave, saldo);
+                // Modified Dietz: saldo inicial + fluxos ponderados pelo tempo restante.
+                // Créditos anteriores ao mês integram o saldo inicial; os do próprio mês são rendimento.
+                if (lancamento.data < data.getTime() || !lancamento.rendimento) {
+                    const peso = lancamento.data < data.getTime() ? 1 :
+                        (fimMes - lancamento.data) / (fimMes - data.getTime());
+                    const capital = (capitais.get(chave) || 0) + sinal * lancamento.centavos * peso;
+                    if (!Number.isFinite(capital) || Math.abs(capital) > Number.MAX_SAFE_INTEGER) falhar("app/movimentacao-invalida");
+                    capitais.set(chave, capital);
+                }
             });
             // Rendimentos são fluxos do mês; créditos anteriores à janela só compõem o saldo.
             if (lancamento.rendimento && lancamento.data >= data.getTime()) {
@@ -98,6 +108,12 @@ export function calcularSaldosMensais(transacoes, contas, investimentos, dataSel
         }
         return {
             categoria: `${nomesMeses[data.getMonth()]}/${data.getFullYear()}`,
+            ano: data.getFullYear(), mes: data.getMonth(),
+            parcial: fimMes < new Date(data.getFullYear(), data.getMonth() + 1, 1).getTime(),
+            dataReferencia: new Date(fimMes - 1).toLocaleDateString('pt-BR'),
+            capitais: data.getTime() >= limite ? [] : Array.from(capitais, ([chave, ponderado]) => ({
+                id: cadastros.get(chave).id, tipo: cadastros.get(chave).tipo, ponderado,
+            })),
             // null diferencia ausência de histórico de um saldo efetivamente zerado.
             saldos: indice === 0 || data.getTime() >= limite ? null : Array.from(saldos, ([chave, centavos]) => ({
                 id: cadastros.get(chave).id, tipo: cadastros.get(chave).tipo, centavos,
@@ -231,6 +247,49 @@ export function calcularRendimentosMensais({ meses }, investimentos) {
         return total / 100;
     });
     return { categorias, rendimentos, ...calcularVariacaoMensal(categorias, rendimentos) };
+}
+
+export function calcularAcumuladoAno(taxas, quantidadeMeses) {
+    const periodo = taxas.slice(-quantidadeMeses);
+    if (periodo.length !== quantidadeMeses || periodo.some((taxa) => taxa == null)) return null;
+    const fator = periodo.reduce((acumulado, taxa) => {
+        if (!Number.isFinite(taxa) || taxa < -100) falhar('app/movimentacao-invalida');
+        return acumulado * (1 + taxa / 100);
+    }, 1);
+    if (!Number.isFinite(fator)) falhar('app/movimentacao-invalida');
+    return (fator - 1) * 100;
+}
+
+export function calcularRendimentosPercentuais({ meses }, investimentos, rendimentosMensais) {
+    const cadastros = new Map(investimentos.map((item) => [item.id, item]));
+    const calculos = meses.map((mes, indice) => {
+        const capitais = mes.capitais.filter(({ id, tipo }) => {
+            if (tipo !== 'investment') return false;
+            if (!cadastros.has(id)) falhar('app/referencia-ausente');
+            return cadastros.get(id).objective === 'Investimento';
+        });
+        const capital = capitais.reduce((total, { ponderado }) => {
+            if (!Number.isFinite(ponderado)) falhar('app/movimentacao-invalida');
+            return total + ponderado;
+        }, 0);
+        if (!Number.isFinite(capital) || Math.abs(capital) > Number.MAX_SAFE_INTEGER) falhar('app/movimentacao-invalida');
+        const rendimento = obterCentavos(rendimentosMensais.rendimentos[indice]);
+        const semCapital = capitais.every(({ ponderado }) => ponderado === 0) && rendimento === 0;
+        const taxa = capital > 0 ? rendimento / capital * 100 : null;
+        if (taxa !== null && !Number.isFinite(taxa)) falhar('app/movimentacao-invalida');
+        return { taxa, semCapital };
+    });
+    const ultimo = meses[meses.length - 1];
+    const quantidadeMesesAno = ultimo.mes + 1;
+    const temCapitalNoAno = calculos.slice(-quantidadeMesesAno).some(({ semCapital }) => !semCapital);
+    return {
+        categorias: rendimentosMensais.categorias,
+        taxas: calculos.map(({ taxa }) => taxa),
+        // Antes do primeiro investimento não há taxa, mas esses meses não invalidam o acumulado posterior.
+        acumuladoAno: temCapitalNoAno ? calcularAcumuladoAno(calculos.map(({ taxa, semCapital }) => semCapital ? 0 : taxa), quantidadeMesesAno) : null,
+        quantidadeMesesAno, ano: ultimo.ano, categoria: ultimo.categoria,
+        parcial: ultimo.parcial, dataReferencia: ultimo.dataReferencia,
+    };
 }
 
 function obterSaldosInvestimentos(saldos, cadastros) {

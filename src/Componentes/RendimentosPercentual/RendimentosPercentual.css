@@ -1,36 +1,35 @@
 .rendimentos-percentual {
     width: 70%;
+    min-width: 0;
 }
 
-/* .rendimentos-percentual .legenda {
+.rendimentos-percentual .legenda {
     align-items: flex-end;
 }
 
 .rendimentos-percentual .legenda-serie {
-    min-width: 290px;
+    min-width: 0;
+    width: 340px;
+    max-width: 100%;
+    gap: 8px;
 }
 
-.rendimentos-percentual .legenda-serie span {
-    text-align: left;
+.rendimentos-percentual .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
 }
 
-.legenda-serie span:last-child {
-    width: 45%;
-} */
-
-.rendimentos-percentual .apexcharts-legend-text {
-    display: flex;
-    min-width: 290px;
-    justify-content: space-between;
+.rendimentos-percentual .estado-selic {
+    margin-top: 12px;
 }
 
-.rendimentos-percentual .apexcharts-legend-text span {
-    /* flex: 1; */
-    text-align: left;
+.rendimentos-percentual .estado-rendimentos-percentual {
+    min-height: 310px;
+    padding-top: 20px;
 }
 
-.rendimentos-percentual .apexcharts-legend-text span:last-child {
-    width: 50%;
+.rendimentos-percentual button {
+    margin-top: 12px;
 }
 
 @media only screen and (max-width: 1300px) {

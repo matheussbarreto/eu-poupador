@@ -1,139 +1,58 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Chart from "react-apexcharts";
 import './RendimentosPercentual.css';
 
-const RendimentosPercentual = () => {
+const formatarPercentual = (valor) => valor == null ? '—' :
+  valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
 
-  const categories = ["Jun/2024", "Jul/2024", "Ago/2024", "Set/2024", "Out/2024", "Nov/2024", "Dez/2024", "Jan/2025"];
-  const totalCategories = categories.length;
-  const categoriesToShow = 11;
-
-  const [selicData, setSelicData] = useState([]);
-
-  useEffect(() => {
-    const fetchSelic = async () => {
-      const response = await fetch("https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados?formato=json");
-      const data = await response.json();
-
-      // Filtra os dados para os meses do seu gráfico
-      const mesesFiltro = ["06/2024", "07/2024", "08/2024", "09/2024", "10/2024", "11/2024", "12/2024", "01/2025"];
-
-      const selicMensal = mesesFiltro.map(mes => {
-        const valorMes = data
-          .filter(entry => entry.data.includes(mes))
-          .map(e => parseFloat(e.valor));
-
-        const media = valorMes.length
-          ? (valorMes.reduce((a, b) => a + b, 0) / valorMes.length).toFixed(2)
-          : null;
-
-        return media ? parseFloat(media) : 0;
-      });
-
-      setSelicData(selicMensal);
-    };
-
-    fetchSelic();
-  }, []);
-
-  const chartOptions = {
-    chart: {
-      type: "line",
-      toolbar: { show: false },
-      fontFamily: '"Segoe UI", "Cocogoose", sans-serif',
-      fontWeight: '400',
+const RendimentosPercentual = ({ dados, carregando, erro, onTentarNovamente, selic, carregandoSelic, erroSelic, onTentarSelic }) => {
+  const [seriesVisiveis, setSeriesVisiveis] = useState({ atual: true, selic: true });
+  const legendas = [
+    { id: 'atual', nome: 'Rendimento Atual', taxas: dados?.taxas || [], acumulado: dados?.acumuladoAno, classe: 'yellow', cor: '#FF9900' },
+    { id: 'selic', nome: 'Rendimento Selic', taxas: selic?.taxas || [], acumulado: selic?.acumuladoAno, classe: 'dark-blue', cor: 'var(--dark-blue-color)' },
+  ];
+  const visiveis = legendas.filter((item) => seriesVisiveis[item.id] && (item.id !== 'selic' || selic));
+  const temPontos = visiveis.some((item) => item.taxas.some((taxa) => taxa !== null));
+  const options = {
+    chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false }, fontFamily: '"Segoe UI", "Cocogoose", sans-serif' },
+    dataLabels: { enabled: false },
+    stroke: { curve: 'straight' },
+    xaxis: { categories: dados?.categorias || [] },
+    yaxis: { labels: { formatter: formatarPercentual } },
+    tooltip: {
+      x: { formatter: (_, { dataPointIndex }) => dados.categorias[dataPointIndex] +
+        (dados.parcial && dataPointIndex === dados.categorias.length - 1 ? ' · parcial até ' + dados.dataReferencia : '') },
+      y: { formatter: (valor) => valor == null ? 'Indisponível' : formatarPercentual(valor) + ' no mês' },
     },
-    dataLabels: {
-      enabled: false, // Habilitar os rótulos de dados
-    },
-    stroke: {
-      curve: "monotoneCubic",
-    },
-    xaxis: {
-      categories: categories,
-      min: totalCategories > categoriesToShow ? totalCategories - categoriesToShow : 1,
-      max: totalCategories,
-    },
-    yaxis: {
-      labels: {
-        formatter: function (val, index) {
-          return `${val} %`;
-        }
-      },
-      min: 0,
-    },
-    title: {
-      text: "Rendimentos (% a.a.)",
-      align: "left",
-      style: {
-        color: "#24b7d9",
-        fontSize: 20
-      },
-    },
-    colors: ["#FF9900", "var(--dark-blue-color)"],
-    legend: {
-      show: true,
-      position: 'top',
-      horizontalAlign: 'right',
-      offsetY: -19,
-      fontSize: 16,
-      formatter: function (seriesName, opts) {
-        const { series, seriesNames } = opts.w.globals;
-        const currentValue = series[opts.seriesIndex].slice(-1)[0] || 0;
-        const currentName = seriesNames[opts.seriesIndex];
-        const valueColor = currentName === 'Saldo'
-          ? (currentValue < 0 ? '#ff1616' : '#24b7d9')
-          : '';
-
-        return `
-          <span>${seriesName}</span>
-          <span style="color: ${valueColor};">${currentValue.toFixed(2)}%</span>
-        `;
-      },
-      // customLegendItems: [
-      //   `<span>Gasto</span> <span>1221</span>`,
-      //   `<span>Gasto</span> <span>1221</span>`,
-      //   `<span>Previsto</span> <span>651651</span>`,
-      // ]
-    },
-    markers: {
-      size: 5,
-      shape: 'circle',
-    },
+    colors: visiveis.map((item) => item.cor),
+    legend: { show: false },
+    markers: { size: 5, shape: 'circle' },
   };
 
-  // Dados do gráfico
-  const chartSeries = [
-    {
-      name: "Rendimento Atual",
-      data: [0.57, 2.00, 0.29, 1.56, 1.24, 1.60, 0.61, 1.50],
-    },
-    {
-      name: "Rendimento Selic",
-      data: selicData,
-    }
-  ];
-
   return (
-    <section className='rendimentos-percentual'>
-      {/*<h2 className="">Rendimentos (% a.a.)</h2>
-       <div className="legenda">
-        <span className="legenda-serie ">
-          <span className="pretty">
-            <input type="checkbox" />
-            <span className="state yellow"><label>Rendimento Atual</label></span>
-          </span>
-          <span>{1.5}%</span>
-        </span>
-      </div> */}
-      <Chart
-        options={chartOptions}
-        series={chartSeries}
-        type="line"
-        height={360}
-      />
+    <section className="rendimentos-percentual" aria-busy={Boolean(carregando)}>
+      <h2>Rendimentos (% a.a.)</h2>
+      {carregando || erro || !dados ? <div className="estado-rendimentos-percentual">
+        {erro ? <><p role="alert">{erro}</p><button className="button" onClick={onTentarNovamente}>Tentar novamente</button></> :
+          <p role="status">Carregando rendimentos...</p>}
+      </div> : <>
+        <div className="legenda">
+          {legendas.map((item) => <div className="legenda-serie" key={item.id}>
+            <div className="pretty">
+              <input type="checkbox" aria-label={'Exibir ' + item.nome} checked={seriesVisiveis[item.id]}
+                onChange={() => setSeriesVisiveis((anterior) => ({ ...anterior, [item.id]: !anterior[item.id] }))} />
+              <div className={'state ' + item.classe}><label>{item.nome}</label></div>
+            </div>
+            <span title={item.acumulado == null ? 'Sem dados suficientes para o acumulado do período' : 'Acumulado no ano, sem anualização'}>{formatarPercentual(item.acumulado)}</span>
+          </div>)}
+        </div>
+        {carregandoSelic ? <p role="status">Carregando Selic...</p> : erroSelic ?
+          <div className="estado-selic"><p role="alert">{erroSelic}</p><button className="button" onClick={onTentarSelic}>Tentar Selic novamente</button></div> : null}
+        {temPontos ? <Chart options={options} series={visiveis.map((item) => ({ name: item.nome, data: item.taxas }))} type="line" height={310} /> :
+          <p className="estado-rendimentos-percentual" role="status">{visiveis.length ? 'Sem taxas disponíveis para as séries selecionadas.' : 'Selecione uma série para visualizar.'}</p>}
+      </>}
     </section>
-  )
-}
+  );
+};
 
 export default RendimentosPercentual;

@@ -11,10 +11,11 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os onze primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos**, **Carteira de Investimentos**, **Rendimentos (R$)** e **Variação dos Rendimentos**. Os outros dois gráficos mantêm dados de demonstração; rendimentos percentuais também consulta a Selic. |
+| Resultados | `/resultados` | Os doze primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos**, **Carteira de Investimentos**, **Rendimentos (R$)**, **Variação dos Rendimentos** e **Rendimentos (% a.a.)**, com referência mensal da Selic. Somente **Variação dos Rendimentos (%)** ainda mantém dados de demonstração. |
 
-As telas do painel exigem login e assinatura válida. A série Selic em Resultados
-usa um período fixo definido no componente e ainda não acompanha o seletor de mês.
+As telas do painel exigem login e assinatura válida. O comparativo com a Selic em
+Resultados usa doze meses até a última taxa mensal fechada disponível, respeitando
+o limite do mês selecionado.
 O painel consulta as transações; o cadastro e a edição dos lançamentos continuam
 no aplicativo que alimenta o Firebase.
 
@@ -847,6 +848,59 @@ do mês selecionado com o mês imediatamente anterior. Recebe o mesmo resultado 
   Trocar o mês ou usuário restaura a visibilidade das barras. Carregamento, erros
   e nova tentativa são compartilhados com os demais gráficos.
 
+### Rendimentos percentuais
+
+O décimo segundo gráfico preserva o título **Rendimentos (% a.a.)**, conforme a
+preferência do projeto. As linhas apresentam **taxas mensais** e a legenda informa
+o **acumulado de janeiro até o último mês comparado**, sem anualizar. As duas séries
+usam a mesma janela de doze meses, encerrada no último mês com Selic fechada disponível
+até o mês selecionado. Por exemplo, selecionar novembro com Selic até outubro exibe
+novembro do ano anterior a outubro, com acumulados de janeiro a outubro. Em janeiro,
+se a última taxa disponível for dezembro, a comparação e os acumulados usam o ano
+anterior. As dicas ao passar o mouse nos pontos indicam a unidade mensal.
+
+`calcularSaldosMensais` calcula o capital ponderado de cada entidade na mesma passagem
+pelas transações usada para reconstruir os saldos. `calcularRendimentosPercentuais`
+reutiliza essa base e os créditos de `calcularRendimentosMensais`, filtrando somente
+os cadastros atualmente classificados como `Investimento`.
+
+- A estimativa usa Modified Dietz: rendimento creditado no mês dividido pelo saldo
+  inicial mais as entradas e saídas ponderadas pelo tempo restante no período.
+- A ponderação respeita as datas e horários dos registros e o calendário local.
+  No mês em andamento, o período termina na data/hora do cálculo, indicada como parcial.
+- Criações no próprio mês entram como capital; créditos anteriores ao mês compõem
+  o saldo inicial. Créditos do próprio mês são o numerador, sem aumentar a base.
+- Aportes e resgates não são rendimento. Transferências entre dois investimentos
+  se compensam na carteira. Bens, dívidas, previsões e créditos em contas ficam fora.
+- Capital positivo sem créditos gera 0%. Sem capital, ou com denominador não positivo,
+  a taxa fica indisponível. Meses sem investimento não impedem o acumulado após o início
+  da carteira; uma taxa incalculável com capital ou créditos impede o acumulado.
+- O acumulado compõe os fatores mensais: 1% seguido de 2% resulta em 3,02%.
+  Meses do ano anterior, mesmo visíveis na janela de 12 meses, não entram na legenda.
+
+Trata-se de uma estimativa baseada nos rendimentos registrados, não de uma avaliação
+de mercado da carteira. Grandes movimentações e créditos registrados em datas que
+não correspondem ao período em que foram gerados podem reduzir sua representatividade.
+Referência metodológica: [GIPS — Modified Dietz e composição dos retornos](https://www.gipsstandards.org/standards/gips-standards-for-asset-owners/gips-standards-handbook-for-asset-owners/).
+
+`selicService.js` consulta a [série SGS 4390 do Banco Central](https://dadosabertos.bcb.gov.br/dataset/4390-taxa-de-juros---selic-acumulada-no-mes),
+em percentual ao mês, limitada a doze meses encerrados. O mês em andamento fica fora
+da comparação: a série mensal não fornece o dia de corte necessário para comparar
+uma taxa parcial com os registros da carteira. Se a última publicação estiver atrasada,
+o corte recua e uma consulta complementar busca apenas o início que faltou para completar
+a janela. Lacunas internas ficam como `null`, não zero; se faltar um mês entre janeiro
+e o corte, o acumulado da Selic exibe `—`.
+
+A página controla a consulta pública separadamente das três fontes do Firestore.
+O recálculo do período dos investimentos reutiliza as transações já carregadas e as
+funções de saldos e rendimentos, sem novas leituras privadas. Os outros gráficos
+continuam no mês selecionado. Sem uma referência disponível, por falha, demora ou
+resposta vazia da Selic, o rendimento próprio continua no período selecionado.
+A nova tentativa da
+Selic repete apenas a consulta pública; trocar de mês cancela a anterior e ignora
+respostas atrasadas. A requisição tem limite de 15 segundos. As séries podem ser
+ocultadas sem mudar os acumulados, e a visibilidade reinicia ao trocar mês ou usuário.
+
 ## Organização
 
 - `src/App.js`: rotas e liberação das páginas após validar a sessão.
@@ -865,6 +919,8 @@ do mês selecionado com o mês imediatamente anterior. Recebe o mesmo resultado 
 - `src/Componentes/CarteiraInvestimentos/`: distribuição dos saldos positivos por investimento, valores e percentuais.
 - `src/Componentes/RendimentosMoeda/`: histórico de rendimentos realizados por mês e controle da linha.
 - `src/Componentes/VariacaoRendimentosMoeda/`: comparação dos rendimentos entre meses, diferença em reais e percentual e controle das barras.
+- `src/Componentes/RendimentosPercentual/`: taxas mensais dos investimentos e da Selic, com acumulado do ano na legenda.
+- `src/services/selicService.js`: consulta pública da Selic mensal, com validação, cancelamento e lacunas preservadas.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
 - `src/Componentes/SaldoReceitasDespesas/`: apresentação do primeiro gráfico e seus estados.
@@ -934,8 +990,12 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   créditos fora da janela, reclassificação, zeros e controle da linha.
 - Variação dos rendimentos: comparação dos meses, centavos, sinais, base zero,
   queda de 100%, controles e cores das barras, recuperação e isolamento entre usuários.
+- Rendimentos percentuais: aportes e resgates ponderados, transferências internas,
+  capital sem rendimento, falta de capital, mês parcial, composição anual e virada do ano.
+- Selic: janela limitada, meses faltantes, dados inválidos, limites do calendário,
+  falha isolada, nova tentativa sem releitura do Firestore e respostas atrasadas.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os onze gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os doze gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -1083,6 +1143,12 @@ do crédito, a troca de mês e a recuperação após falha.
 Na Variação dos Rendimentos, compare as duas barras com os últimos dois meses do
 histórico. Confira aumento, queda e base zero, inclusive na virada do ano. Ocultar
 uma barra deve preservar os valores da legenda e a série do gráfico de rendimentos.
+Em Rendimentos (% a.a.), confira os doze meses encerrando na última Selic disponível
+e os dois acumulados de janeiro até esse corte. Compare aportes no início e no meio
+do mês, resgates e transferências internas. Teste a virada do ano, atraso na publicação,
+falha da Selic, nova tentativa e lacunas internas. O mês parcial não entra na comparação
+quando há uma referência fechada disponível. Os demais gráficos preservam o mês
+selecionado e a legenda não deve apresentar um acumulado incompleto como anual.
 
 ## Publicação
 
@@ -1099,5 +1165,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos onze primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos doze primeiros gráficos de Resultados também
 no endereço publicado.

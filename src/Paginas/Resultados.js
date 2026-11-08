@@ -17,15 +17,21 @@ import VariacaoRendimentosPercentual from "../Componentes/VariacaoRendimentosPer
 import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
+import { consultarSelicMensal } from "../services/selicService";
+import { calcularRendimentosPercentuais, calcularAcumuladoAno } from "../services/resultadosService";
 import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, calcularCarteiraInvestimentos, calcularRendimentosMensais, obterMensagemErroResultados } from "../services/resultadosService";
 
 const Resultados = ({ usuarioId }) => {
     const [dataSelecionada, setDataSelecionada] = useState(() => new Date());
     const [fontes, setFontes] = useState({});
     const [tentativa, setTentativa] = useState(0);
+    const [selic, setSelic] = useState({});
+    const [tentativaSelic, setTentativaSelic] = useState(0);
     const ano = dataSelecionada.getFullYear();
     const mes = dataSelecionada.getMonth();
     const periodo = `${usuarioId}/${ano}/${mes}`;
+    const periodoSelic = `${ano}/${mes}`;
+    const selicAtual = selic.periodo === periodoSelic && selic.tentativa === tentativaSelic;
     const fontesAtuais = fontes.usuarioId === usuarioId && fontes.tentativa === tentativa;
     const erroConsulta = fontesAtuais && fontes.erro;
     const carregando = !fontesAtuais || !fontes.contas || !fontes.investimentos || !fontes.transacoes;
@@ -52,6 +58,21 @@ const Resultados = ({ usuarioId }) => {
             cancelar.forEach((limpar) => limpar());
         };
     }, [usuarioId, tentativa]);
+
+    useEffect(() => {
+        let ativo = true;
+        const controlador = new AbortController();
+        const tempo = setTimeout(() => controlador.abort(), 15000);
+        const referencia = { periodo: `${ano}/${mes}`, tentativa: tentativaSelic };
+        setSelic(referencia);
+        consultarSelicMensal(new Date(ano, mes, 1), controlador.signal).then(({ taxas, dataFinal }) => {
+            if (ativo) setSelic({ ...referencia, dados: { taxas, dataFinal,
+                acumuladoAno: dataFinal ? calcularAcumuladoAno(taxas, dataFinal.getMonth() + 1) : null } });
+        }).catch(() => {
+            if (ativo) setSelic({ ...referencia, erro: 'Não foi possível consultar a Selic. Tente novamente.' });
+        }).finally(() => clearTimeout(tempo));
+        return () => { ativo = false; clearTimeout(tempo); controlador.abort(); };
+    }, [ano, mes, tentativaSelic]);
 
     const saldosMensais = useMemo(() => {
         if (carregando || erroConsulta) return {};
@@ -134,6 +155,20 @@ const Resultados = ({ usuarioId }) => {
         }
     }, [saldosMensais.dados, fontes.investimentos]);
     const erro = erroConsulta || saldosMensais.erro || patrimonio.erro;
+    const dataFinalSelic = selicAtual ? selic.dados?.dataFinal : null;
+    const rendimentosPercentuais = useMemo(() => {
+        if (!saldosMensais.dados || !rendimentosMensais.dados) return {};
+        try {
+            if (dataFinalSelic && (dataFinalSelic.getFullYear() !== ano || dataFinalSelic.getMonth() !== mes)) {
+                const base = calcularSaldosMensais(fontes.transacoes, fontes.contas, fontes.investimentos, dataFinalSelic);
+                const rendimentos = calcularRendimentosMensais(base, fontes.investimentos);
+                return { dados: calcularRendimentosPercentuais(base, fontes.investimentos, rendimentos) };
+            }
+            return { dados: calcularRendimentosPercentuais(saldosMensais.dados, fontes.investimentos, rendimentosMensais.dados) };
+        } catch (erro) {
+            return { erro: obterMensagemErroResultados(erro) };
+        }
+    }, [saldosMensais.dados, fontes.transacoes, fontes.contas, fontes.investimentos, rendimentosMensais.dados, dataFinalSelic, ano, mes]);
     const tentarNovamente = () => {
         setTentativa((valor) => valor + 1);
     };
@@ -218,7 +253,17 @@ const Resultados = ({ usuarioId }) => {
                 erro={erro || rendimentosMensais.erro}
                 onTentarNovamente={tentarNovamente}
             />
-            <RendimentosPercentual />
+            <RendimentosPercentual
+                key={`percentuais-${periodo}`}
+                dados={rendimentosPercentuais.dados}
+                carregando={!erro && carregando}
+                erro={erro || rendimentosMensais.erro || rendimentosPercentuais.erro}
+                onTentarNovamente={tentarNovamente}
+                selic={selicAtual ? selic.dados : undefined}
+                carregandoSelic={!selicAtual || (!selic.dados && !selic.erro)}
+                erroSelic={selicAtual ? selic.erro : undefined}
+                onTentarSelic={() => setTentativaSelic((valor) => valor + 1)}
+            />
             <VariacaoRendimentosPercentual />
         </div>
     )
