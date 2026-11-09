@@ -1,5 +1,8 @@
 .variacao-rendimentos-percentual {
     width: 29%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .variacao-rendimentos-percentual .legenda {
@@ -7,17 +10,46 @@
 }
 
 .variacao-rendimentos-percentual .legenda-serie {
-    display: flex;
-    min-width: 290px;
+    min-width: 0;
+    width: 100%;
+    gap: 8px;
 }
 
 .variacao-rendimentos-percentual .legenda-serie:last-child {
     font-weight: bold;
 }
 
+.variacao-rendimentos-percentual .legenda-serie span {
+    text-align: left;
+}
+
+.variacao-rendimentos-percentual .legenda-serie > span:last-child {
+    width: auto;
+    overflow-wrap: anywhere;
+}
+
+.variacao-rendimentos-percentual .area-grafico-variacao {
+    position: relative;
+    flex: 1;
+    min-height: 250px;
+}
+
+.variacao-rendimentos-percentual .area-grafico-variacao > div {
+    position: absolute;
+    inset: 0;
+}
+
+.variacao-rendimentos-percentual .estado-variacao {
+    min-height: 310px;
+    padding-top: 20px;
+}
+
+.variacao-rendimentos-percentual .estado-variacao .button {
+    margin-top: 16px;
+}
+
 @media only screen and (max-width: 1300px) {
     .variacao-rendimentos-percentual {
         width: 32.5%;
     }
-
 }

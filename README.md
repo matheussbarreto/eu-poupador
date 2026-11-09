@@ -11,7 +11,7 @@ para login e Cloud Firestore para consultar os dados financeiros.
 | Login | `/login` | Login por e-mail e senha, recuperação de senha e validação de assinatura. |
 | Balanço Mensal | `/` | Todos os dez gráficos usam dados do usuário no Firestore: **Saldo: Receitas vs. Despesas**, **Saldo: Acumulado vs. Previsto**, **Receitas: Recebido vs. Previsto por fonte e totais**, **Despesas: Gasto vs. Previsto por despesa e totais**, **Despesas por Categoria**, **Despesas por Tipo**, **Despesas por Utilidade** e **Método 4D (Despesas Por Tipo): Gasto vs. Previsto**. |
 | Objetivos | `/objetivos` | Todos os seis gráficos compartilham os dados do usuário no Firestore: os três gráficos mensais e os três globais, **Acúmulos e Amortizações**, **Grau de Compromisso Global** e **Atual vs. Desejado**. |
-| Resultados | `/resultados` | Os doze primeiros gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos**, **Carteira de Investimentos**, **Rendimentos (R$)**, **Variação dos Rendimentos** e **Rendimentos (% a.a.)**, com referência mensal da Selic. Somente **Variação dos Rendimentos (%)** ainda mantém dados de demonstração. |
+| Resultados | `/resultados` | Todos os treze gráficos compartilham contas, objetivos e transações do usuário no Firestore: **Patrimônio: Ativos vs. Passivos** (histórico), **Variação Patrimonial**, **Ativos**, **Passivos**, **Patrimônio: Ativos vs. Passivos** (comparação em rosca), **Saldo dos Investimentos**, **Variação Saldo dos Investimentos**, **Controle dos Investimentos**, **Carteira de Investimentos**, **Rendimentos (R$)**, **Variação dos Rendimentos (R$)**, **Rendimentos (% a.a.)**, com referência mensal da Selic, e **Variação dos Rendimentos (%)**. |
 
 As telas do painel exigem login e assinatura válida. O comparativo com a Selic em
 Resultados usa doze meses até a última taxa mensal fechada disponível, respeitando
@@ -893,13 +893,34 @@ e o corte, o acumulado da Selic exibe `—`.
 
 A página controla a consulta pública separadamente das três fontes do Firestore.
 O recálculo do período dos investimentos reutiliza as transações já carregadas e as
-funções de saldos e rendimentos, sem novas leituras privadas. Os outros gráficos
-continuam no mês selecionado. Sem uma referência disponível, por falha, demora ou
-resposta vazia da Selic, o rendimento próprio continua no período selecionado.
-A nova tentativa da
-Selic repete apenas a consulta pública; trocar de mês cancela a anterior e ignora
+funções de saldos e rendimentos, sem novas leituras privadas. O gráfico de variação
+percentual acompanha esse mesmo corte; os demais continuam no mês selecionado.
+Sem uma referência disponível, por falha, demora ou resposta vazia da Selic, o
+rendimento próprio continua no período selecionado. A nova tentativa da Selic
+repete apenas a consulta pública; trocar de mês cancela a anterior e ignora
 respostas atrasadas. A requisição tem limite de 15 segundos. As séries podem ser
 ocultadas sem mudar os acumulados, e a visibilidade reinicia ao trocar mês ou usuário.
+
+### Variação dos rendimentos percentuais
+
+O décimo terceiro gráfico preserva o título **Variação dos Rendimentos** e compara
+as taxas mensais dos dois últimos meses do gráfico **Rendimentos (% a.a.)**.
+`calcularVariacaoRendimentosPercentuais` recebe a série já calculada pela página,
+sem consultar novamente o Firestore ou o Banco Central.
+
+- As barras mostram as taxas mensais, sem anualização. A variação é a subtração
+  da taxa anterior da atual, em **pontos percentuais (p.p.)**: de 1% para 2%, +1 p.p.
+  O cálculo mantém a precisão original; somente a exibição arredonda para duas casas.
+- Se o gráfico de linhas termina em outubro, as barras comparam setembro e outubro.
+  Datas nas legendas e dicas identificam os meses, inclusive na virada do ano.
+- Capital positivo sem créditos continua como 0%. Uma taxa indisponível fica como
+  `—`, sem barra; se um dos meses não tem taxa, a variação também fica indisponível.
+  De 0% para 2%, a diferença é +2 p.p., sem divisão por zero.
+- Ocultar uma barra mantém a legenda, a diferença e o gráfico de linhas. As cores
+  permanecem cinza para o mês anterior e amarelo para o atual. Trocar o mês ou usuário
+  restaura as barras. A altura acompanha o cartão vizinho.
+- Carregamento, erros e nova tentativa usam os estados da página. Na ausência da
+  Selic, a comparação segue a mesma série própria exibida no gráfico de linhas.
 
 ## Organização
 
@@ -920,6 +941,7 @@ ocultadas sem mudar os acumulados, e a visibilidade reinicia ao trocar mês ou u
 - `src/Componentes/RendimentosMoeda/`: histórico de rendimentos realizados por mês e controle da linha.
 - `src/Componentes/VariacaoRendimentosMoeda/`: comparação dos rendimentos entre meses, diferença em reais e percentual e controle das barras.
 - `src/Componentes/RendimentosPercentual/`: taxas mensais dos investimentos e da Selic, com acumulado do ano na legenda.
+- `src/Componentes/VariacaoRendimentosPercentual/`: comparação das duas últimas taxas mensais dos investimentos e diferença em pontos percentuais.
 - `src/services/selicService.js`: consulta pública da Selic mensal, com validação, cancelamento e lacunas preservadas.
 - `src/Componentes/FormularioLogin/`: formulário, recuperação e CSS.
 - `src/Componentes/MonthSelector/`: navegação entre meses.
@@ -992,10 +1014,12 @@ ou enviar e-mails. As funções de cálculo são executadas com dados de teste. 
   queda de 100%, controles e cores das barras, recuperação e isolamento entre usuários.
 - Rendimentos percentuais: aportes e resgates ponderados, transferências internas,
   capital sem rendimento, falta de capital, mês parcial, composição anual e virada do ano.
+- Variação dos rendimentos percentuais: precisão, pontos percentuais, base zero,
+  lacunas, controles independentes e alinhamento com o corte da Selic.
 - Selic: janela limitada, meses faltantes, dados inválidos, limites do calendário,
   falha isolada, nova tentativa sem releitura do Firestore e respostas atrasadas.
 - Resultados: carregamento das três fontes, mês sem novas consultas, troca de usuário,
-  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os doze gráficos integrados.
+  respostas atrasadas, cancelamento, erros, nova tentativa e consistência entre os treze gráficos integrados.
 - Cálculo mensal, centavos, saldo negativo, exclusões, datas e valores inválidos.
 - Histórico de previsões, comparação mensal, previsto zero ou negativo e visibilidade das séries.
 - Receitas por fonte, vínculo por identificador, fontes sem recebimentos ou previsão,
@@ -1147,8 +1171,12 @@ Em Rendimentos (% a.a.), confira os doze meses encerrando na última Selic dispo
 e os dois acumulados de janeiro até esse corte. Compare aportes no início e no meio
 do mês, resgates e transferências internas. Teste a virada do ano, atraso na publicação,
 falha da Selic, nova tentativa e lacunas internas. O mês parcial não entra na comparação
-quando há uma referência fechada disponível. Os demais gráficos preservam o mês
-selecionado e a legenda não deve apresentar um acumulado incompleto como anual.
+quando há uma referência fechada disponível. Os gráficos de valores em reais
+preservam o mês selecionado e a legenda não deve apresentar um acumulado incompleto
+como anual.
+Na variação percentual, confira que as barras correspondem aos dois últimos pontos
+da série própria, com a diferença em p.p. Teste taxas zeradas, meses sem capital,
+controles independentes, atualização das transações e troca de usuário.
 
 ## Publicação
 
@@ -1165,5 +1193,5 @@ O comando `npm run build` gera a pasta `build/`. Na hospedagem, incluindo a Verc
 
 Um build bem-sucedido não confirma as credenciais, as permissões do Firestore ou
 a assinatura da conta. Faça a verificação de login, dos dez gráficos do Balanço Mensal,
-dos seis gráficos de Objetivos e dos doze primeiros gráficos de Resultados também
+dos seis gráficos de Objetivos e dos treze gráficos de Resultados também
 no endereço publicado.

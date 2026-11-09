@@ -18,7 +18,7 @@ import { observarContas } from "../services/contasService";
 import { observarInvestimentos } from "../services/investimentosService";
 import { observarHistoricoTransacoes } from "../services/transacoesService";
 import { consultarSelicMensal } from "../services/selicService";
-import { calcularRendimentosPercentuais, calcularAcumuladoAno } from "../services/resultadosService";
+import { calcularRendimentosPercentuais, calcularVariacaoRendimentosPercentuais, calcularAcumuladoAno } from "../services/resultadosService";
 import { calcularSaldosMensais, calcularPatrimonioMensal, calcularVariacaoPatrimonial, calcularResultadoAtivos, calcularResultadoPassivos, calcularResultadoAtivoPassivo, calcularSaldoInvestimentos, calcularControleInvestimentos, calcularCarteiraInvestimentos, calcularRendimentosMensais, obterMensagemErroResultados } from "../services/resultadosService";
 
 const Resultados = ({ usuarioId }) => {
@@ -169,6 +169,14 @@ const Resultados = ({ usuarioId }) => {
             return { erro: obterMensagemErroResultados(erro) };
         }
     }, [saldosMensais.dados, fontes.transacoes, fontes.contas, fontes.investimentos, rendimentosMensais.dados, dataFinalSelic, ano, mes]);
+    const variacaoRendimentosPercentuais = useMemo(() => {
+        if (!rendimentosPercentuais.dados) return {};
+        try {
+            return { dados: calcularVariacaoRendimentosPercentuais(rendimentosPercentuais.dados) };
+        } catch (erro) {
+            return { erro: obterMensagemErroResultados(erro) };
+        }
+    }, [rendimentosPercentuais.dados]);
     const tentarNovamente = () => {
         setTentativa((valor) => valor + 1);
     };
@@ -264,7 +272,13 @@ const Resultados = ({ usuarioId }) => {
                 erroSelic={selicAtual ? selic.erro : undefined}
                 onTentarSelic={() => setTentativaSelic((valor) => valor + 1)}
             />
-            <VariacaoRendimentosPercentual />
+            <VariacaoRendimentosPercentual
+                key={`variacao-percentuais-${periodo}`}
+                dados={variacaoRendimentosPercentuais.dados}
+                carregando={!erro && carregando}
+                erro={erro || rendimentosMensais.erro || rendimentosPercentuais.erro || variacaoRendimentosPercentuais.erro}
+                onTentarNovamente={tentarNovamente}
+            />
         </div>
     )
 }

@@ -292,6 +292,20 @@ export function calcularRendimentosPercentuais({ meses }, investimentos, rendime
     };
 }
 
+export function calcularVariacaoRendimentosPercentuais({ categorias, taxas, parcial, dataReferencia }) {
+    const indice = taxas.length - 1;
+    const anterior = taxas[indice - 1] ?? null;
+    const atual = taxas[indice] ?? null;
+    if ([anterior, atual].some((taxa) => taxa !== null && !Number.isFinite(taxa))) falhar('app/movimentacao-invalida');
+    // A diferença entre taxas é expressa em pontos percentuais, sem arredondar a base.
+    const diferenca = anterior === null || atual === null ? null : atual - anterior;
+    if (diferenca !== null && !Number.isFinite(diferenca)) falhar('app/movimentacao-invalida');
+    return {
+        categoria: categorias[indice], categoriaAnterior: categorias[indice - 1],
+        anterior, atual, diferenca, parcial, dataReferencia,
+    };
+}
+
 function obterSaldosInvestimentos(saldos, cadastros) {
     return (saldos || []).filter(({ id, tipo, centavos }) => {
         if (tipo !== 'investment') return false;

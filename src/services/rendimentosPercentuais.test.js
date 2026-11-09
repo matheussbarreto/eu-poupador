@@ -1,4 +1,4 @@
-import { calcularSaldosMensais, calcularRendimentosMensais, calcularRendimentosPercentuais, calcularAcumuladoAno } from './resultadosService';
+import { calcularSaldosMensais, calcularRendimentosMensais, calcularRendimentosPercentuais, calcularVariacaoRendimentosPercentuais, calcularAcumuladoAno } from './resultadosService';
 
 const objetivos = [{ id: 'i', objective: 'Investimento', current: 0 }];
 const lancamento = (data, amount, outgoingType = 'update', inID = 'i', incomingType = 'investment', outID) => ({
@@ -8,6 +8,29 @@ const calcular = (transacoes, selecionado = new Date(2026, 1, 1), investimentos 
     const base = calcularSaldosMensais(transacoes, [{ id: 'c', balance: 0 }], investimentos, selecionado, agora);
     return calcularRendimentosPercentuais(base, investimentos, calcularRendimentosMensais(base, investimentos));
 };
+
+test('variação compara os dois últimos meses, preserva precisão e não usa o acumulado anual', () => {
+    const dados = { categorias: ['Nov/2025', 'Dez/2025', 'Jan/2026'], taxas: [99, 0.123456, 0.223457], acumuladoAno: 15 };
+    const copia = JSON.stringify(dados);
+    const variacao = calcularVariacaoRendimentosPercentuais(dados);
+    expect(variacao).toMatchObject({ categoria: 'Jan/2026', categoriaAnterior: 'Dez/2025', anterior: 0.123456, atual: 0.223457 });
+    expect(variacao.diferenca).toBeCloseTo(0.100001, 12);
+    expect(JSON.stringify(dados)).toBe(copia);
+});
+
+test.each([
+    [1, 2, 1], [2, 1, -1], [2, 0, -2], [0, 2, 2], [0, 0, 0],
+    [null, 2, null], [1, null, null], [null, null, null],
+])('variação de %s para %s preserva zero e indisponibilidade', (anterior, atual, diferenca) => {
+    expect(calcularVariacaoRendimentosPercentuais({ categorias: ['Jan/2026', 'Fev/2026'], taxas: [anterior, atual] }))
+        .toMatchObject({ anterior, atual, diferenca });
+});
+
+test('variação preserva o corte parcial e rejeita taxas inválidas', () => {
+    const dados = { categorias: ['Jan/2026', 'Fev/2026'], taxas: [0, 1], parcial: true, dataReferencia: '14/02/2026' };
+    expect(calcularVariacaoRendimentosPercentuais(dados)).toMatchObject({ parcial: true, dataReferencia: '14/02/2026' });
+    [NaN, Infinity, '1'].forEach(taxa => expect(() => calcularVariacaoRendimentosPercentuais({ ...dados, taxas: [taxa, 1] })).toThrow());
+});
 
 test('pondera aporte no meio do mês e compõe apenas os meses do ano selecionado', () => {
     const registros = [lancamento(new Date(2025, 11, 1), 1000, 'create'),

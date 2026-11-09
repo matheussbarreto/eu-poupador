@@ -12,7 +12,6 @@ jest.mock("../services/investimentosService", () => ({ observarInvestimentos: je
 jest.mock("../services/transacoesService", () => ({ observarHistoricoTransacoes: jest.fn() }));
 jest.mock("../services/selicService", () => ({ consultarSelicMensal: jest.fn() }));
 jest.mock("react-apexcharts", () => (props) => <div data-testid="grafico">{JSON.stringify({ series: props.series, categorias: props.options.xaxis?.categories, labels: props.options.labels, cores: props.options.colors })}</div>);
-jest.mock("../Componentes/VariacaoRendimentosPercentual", () => () => null);
 
 let container;
 let root;
@@ -558,6 +557,8 @@ test('percentuais usam créditos compartilhados, preservam o título e recuperam
     consultarSelicMensal.mockRejectedValueOnce(new Error('Falha BCB'));
     const percentual = () => container.querySelector('.rendimentos-percentual');
     const ler = () => JSON.parse(percentual().querySelector('[data-testid="grafico"]').textContent);
+    const variacao = () => container.querySelector('.variacao-rendimentos-percentual');
+    const lerVariacao = () => JSON.parse(variacao().querySelector('[data-testid="grafico"]').textContent);
     await act(async () => root.render(<Resultados usuarioId="a" />));
     const registros = [
         { date: new Date(2026, 8, 1).toISOString(), amount: 1000, outgoingType: 'create', incomingType: 'investment', inID: 'i' },
@@ -570,6 +571,8 @@ test('percentuais usam créditos compartilhados, preservam o título e recuperam
         fontes.transacoes[0].receber(registros);
     });
     expect(ler().series[0].data.slice(-2)).toEqual([1, 2]);
+    expect(lerVariacao().series.map(serie => serie.data[0])).toEqual([1, 2]);
+    expect(variacao().querySelector('.diferenca-rendimentos').textContent).toContain('+1,00 p.p.');
     expect(percentual().querySelector('h2').textContent).toBe('Rendimentos (% a.a.)');
     expect(percentual().querySelector('.legenda').textContent).toContain('3,02%');
     expect(percentual().querySelector('[role="alert"]').textContent).toContain('Selic');
@@ -579,21 +582,31 @@ test('percentuais usam créditos compartilhados, preservam o título e recuperam
     Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
     expect(consultarSelicMensal).toHaveBeenCalledTimes(2);
     await act(async () => percentual().querySelector('[aria-label="Exibir Rendimento Atual"]').click());
+    expect(lerVariacao().series.map(serie => serie.data[0])).toEqual([1, 2]);
+    await act(async () => variacao().querySelector('[aria-label="Exibir Mês Atual"]').click());
+    expect(ler().series).toHaveLength(1);
     await act(async () => container.querySelector('[aria-label="Mês anterior"]').click());
     expect(ler().series[0].data.at(-1)).toBe(1);
     expect(percentual().querySelector('[aria-label="Exibir Rendimento Atual"]').checked).toBe(true);
+    expect(variacao().querySelector('[aria-label="Exibir Mês Atual"]').checked).toBe(true);
+    expect(lerVariacao().series.map(serie => serie.data[0])).toEqual([null, 1]);
+    expect(variacao().querySelector('.diferenca-rendimentos').textContent).toBe('Variação—');
     Object.values(fontes).forEach(lista => expect(lista).toHaveLength(1));
     expect(consultarSelicMensal).toHaveBeenCalledTimes(3);
     await act(async () => fontes.transacoes[0].receber(registros.map(item => item.outgoingType === 'update' ? { ...item, isDeleted: true } : item)));
     expect(ler().series[0].data.at(-1)).toBe(0);
+    expect(lerVariacao().series.map(serie => serie.data[0])).toEqual([null, 0]);
     await act(async () => fontes.contas[0].falhar({ code: 'permission-denied' }));
     expect(percentual().querySelector('.legenda')).toBeNull();
+    expect(variacao().querySelector('.legenda')).toBeNull();
     await act(async () => root.render(<Resultados usuarioId="b" />));
     await act(async () => fontes.transacoes[0].receber(registros));
     expect(percentual().querySelector('.legenda')).toBeNull();
     await receber(1);
     expect(percentual().querySelector('[role="alert"]')).toBeNull();
     expect(ler().series[0].data).toEqual(Array(12).fill(null));
+    expect(variacao().querySelector('[data-testid="grafico"]')).toBeNull();
+    expect(variacao().querySelector('[role="status"]').textContent).toContain('Sem taxas disponíveis');
     expect(consultarSelicMensal).toHaveBeenCalledTimes(3);
 });
 
@@ -617,7 +630,7 @@ test('respostas atrasadas da Selic não substituem o período atual e a consulta
 test.each([
     { agora: new Date(2026, 10, 7), corte: new Date(2026, 9, 1), inicio: 'Nov/2025', fim: 'Out/2026', mesesAno: 10 },
     { agora: new Date(2026, 0, 7), corte: new Date(2025, 11, 1), inicio: 'Jan/2025', fim: 'Dez/2025', mesesAno: 12 },
-])('alinha linhas e acumulados até $fim, mantendo doze meses e os demais gráficos no mês escolhido', async ({ agora, corte, inicio, fim, mesesAno }) => {
+])('alinha linhas, variação e acumulados até $fim, mantendo doze meses e os demais gráficos no mês escolhido', async ({ agora, corte, inicio, fim, mesesAno }) => {
     jest.setSystemTime(agora);
     consultarSelicMensal.mockResolvedValue({ taxas: Array(12).fill(0.5), dataFinal: corte });
     await act(async () => root.render(<Resultados usuarioId="a" />));
@@ -636,6 +649,11 @@ test.each([
     expect(exibido.categorias[0]).toBe(inicio);
     expect(exibido.categorias.at(-1)).toBe(fim);
     expect(exibido.series.map(serie => serie.data.at(-1))).toEqual([1, 0.5]);
+    const variacao = container.querySelector('.variacao-rendimentos-percentual');
+    const barras = JSON.parse(variacao.querySelector('[data-testid="grafico"]').textContent);
+    expect(barras.categorias).toEqual([fim]);
+    expect(barras.series.map(serie => serie.data[0])).toEqual(exibido.series[0].data.slice(-2));
+    expect(variacao.querySelector('.diferenca-rendimentos').textContent).toContain('+1,00 p.p.');
     const acumulados = percentual.querySelectorAll('.legenda-serie > span');
     expect(acumulados[0].textContent).toBe('1,00%');
     expect(acumulados[1].textContent).toBe(((1.005 ** mesesAno - 1) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');
